@@ -44,6 +44,7 @@ export type Report = {
   is_duplicate_report: boolean;
   detected_language: string | null;
   extraction_confidence: number | null;
+  photo_url: string | null;
 };
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -63,6 +64,7 @@ export type MatchCandidate = {
   last_seen_landmark: string | null;
   filed_at: string;
   origin_city: string | null;
+  photo_url: string | null;
   vector_score: number;
   confidence: number;
   band: "high" | "probable" | "possible";
@@ -119,6 +121,14 @@ export const api = {
     fd.append("file", blob, "voice.webm");
     return fetch("/api/v1/media/transcribe", { method: "POST", body: fd }).then((r) =>
       unwrap<Transcription>(r)
+    );
+  },
+
+  uploadPhoto: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file, file.name || "photo.jpg");
+    return fetch("/api/v1/media/upload", { method: "POST", body: fd }).then((r) =>
+      unwrap<{ photo_url: string; filename: string }>(r)
     );
   },
 

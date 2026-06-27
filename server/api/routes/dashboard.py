@@ -109,10 +109,14 @@ async def get_stats(session: AsyncSession = Depends(get_session)):
     matched = (await session.execute(
         select(CaseEvent.report_id, CaseEvent.event_at).where(CaseEvent.event_type == "matched")
     )).all()
+    # Only count plausible reunion spans: matched-after-filed and within a sane
+    # window. Guards against demo/seed rows whose filed_at is future-dated (which
+    # would otherwise yield a negative or absurd average).
     spans = [
-        (ev_at - filed_at[rid]).total_seconds() / 3600
+        span
         for rid, ev_at in matched
         if rid in filed_at and filed_at[rid] and ev_at
+        and 0 <= (span := (ev_at - filed_at[rid]).total_seconds() / 3600) <= 24 * 14
     ]
     avg_resolution_hours = round(mean(spans), 1) if spans else None
 

@@ -23,13 +23,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.logging_utils import get_logger, mask_phone
 from db.models import Booth, FoundReport, MissingReport, Zone
 from schemas.common import EventType
+from services import media_store
 from services.case_events import log_event
 from services.dedup import flag_duplicates_on_intake
-from services.embedding import embed_text
+from services.embedding import embed_face, embed_text
 from services.hub import hub
 from services.neo4j_client import neo4j_client
 
 log = get_logger("nandi.intake")
+
+
+def _face_vector(photo_url: str | None) -> list[float] | None:
+    """
+    Compute the face embedding for a stored photo (None when there is no photo).
+
+    Photos are stored by api.routes.media → services.media_store; we re-read the
+    bytes here so the face vector is computed exactly once, at intake, and stored
+    on the report for the matcher's photo re-rank step (SoW §6). Best-effort: any
+    failure (no face detected, decode error) degrades to None — photos are
+    optional everywhere (SoW §12.8 #5) and never block a report.
+    """
+    if not photo_url:
+        return None
+    try:
+        data = media_store.read_photo_by_url(photo_url)
+        if not data:
+            return None
+        return embed_face(data)
+    except Exception as exc:  # never let a bad image block intake
+        log.warning("face embedding failed for %s (%s); continuing without it", photo_url, exc)
+        return None
 
 
 _AGE_BANDS = [(0, 12, "0-12"), (13, 17, "13-17"), (18, 40, "18-40"),
@@ -96,6 +119,7 @@ def feed_item(report: MissingReport | FoundReport, kind: str, channel: str = "we
         "is_duplicate_report": False,
         "detected_language": report.language_spoken,
         "extraction_confidence": None,
+        "photo_url": report.photo_url,
     }
 
 
@@ -132,6 +156,7 @@ async def file_missing(
         photo_url=photo_url,
         status="active",
         embedding=embed_text(desc, kind="passage"),
+        face_embedding=_face_vector(photo_url),
     )
     session.add(report)
     await session.flush()  # assign id + server defaults (filed_at)
@@ -181,6 +206,7 @@ async def file_found(
         photo_url=photo_url,
         status="unmatched",
         embedding=embed_text(desc, kind="passage"),
+        face_embedding=_face_vector(photo_url),
     )
     session.add(report)
     await session.flush()

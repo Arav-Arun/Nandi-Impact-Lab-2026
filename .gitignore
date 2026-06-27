@@ -42,3 +42,6 @@
 **/.vscode/
 *.log
 **/*.log
+
+# Runtime-uploaded person photos (not source)
+server/media/photos/

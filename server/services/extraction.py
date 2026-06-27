@@ -88,7 +88,15 @@ async def extract(text: str, detected_language: str | None = None) -> Extracted:
     if not settings.claude_enabled:
         return _heuristic(text, detected_language)
 
-    from anthropic import AsyncAnthropic
+    try:
+        from anthropic import AsyncAnthropic
+    except ModuleNotFoundError:
+        # Key is set but the SDK isn't installed — degrade instead of 500ing.
+        log.warning(
+            "anthropic SDK not installed; using heuristic extraction "
+            "(run `pip install anthropic` to enable real Claude extraction)"
+        )
+        return _heuristic(text, detected_language)
 
     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
     hint = f"\n(Audio was auto-detected as language: {detected_language}.)" if detected_language else ""

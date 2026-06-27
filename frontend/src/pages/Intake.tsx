@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, type Extracted } from "../lib/api";
 import { INTAKE_LANGUAGES, useT } from "../lib/i18n";
 import { useRecorder } from "../lib/useRecorder";
+import { PhotoUpload } from "../components/PhotoUpload";
 
 const AGE_BANDS = ["0-12", "13-17", "18-40", "41-60", "61-70", "71-80", "80+"];
 
@@ -36,6 +37,7 @@ export default function Intake() {
   const t = useT();
   const [f, setF] = useState<Form>({ ...empty });
   const [meta, setMeta] = useState<Meta>({});
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [done, setDone] = useState<{ case_id: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -123,7 +125,7 @@ export default function Intake() {
   async function submit() {
     setBusy(true);
     try {
-      const res = await api.fileMissing({ ...f, ...meta });
+      const res = await api.fileMissing({ ...f, ...meta, photo_url: photoUrl });
       setDone(res);
     } catch (e) {
       alert("Could not file: " + (e as Error).message);
@@ -142,7 +144,7 @@ export default function Intake() {
           <p className="mt-1 text-[var(--color-ink-soft)]">{t("in.filedSub")}</p>
           <div className="mt-4 inline-block rounded-xl bg-[var(--color-paper-2)] px-4 py-2 font-mono text-lg font-bold">{done.case_id}</div>
           <div className="mt-6">
-            <button onClick={() => { setF({ ...empty }); setMeta({}); setTranscript(""); setVoiceStage(""); setDone(null); }} className="nandi-gradient rounded-full px-6 py-3 font-semibold text-white">
+            <button onClick={() => { setF({ ...empty }); setMeta({}); setPhotoUrl(null); setTranscript(""); setVoiceStage(""); setDone(null); }} className="nandi-gradient rounded-full px-6 py-3 font-semibold text-white">
               {t("in.fileAnother")}
             </button>
           </div>
@@ -256,6 +258,10 @@ export default function Intake() {
 
         <Field label={t("in.desc")}>
           <textarea className={inputCls} rows={3} value={f.physical_description} onChange={(e) => set("physical_description", e.target.value)} placeholder={t("in.descPlaceholder")} />
+        </Field>
+
+        <Field label={t("in.photo")}>
+          <PhotoUpload photoUrl={photoUrl} onChange={setPhotoUrl} />
         </Field>
 
         <div className="grid grid-cols-2 gap-4">

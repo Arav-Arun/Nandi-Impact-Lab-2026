@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFeed } from "../lib/useFeed";
 import { ChannelBadge, StatusPill } from "../components/ui";
+import { PhotoUpload } from "../components/PhotoUpload";
 import { api, type Booth, type MatchCandidate, type ConfirmResult, type Report } from "../lib/api";
 import { useT } from "../lib/i18n";
 
@@ -39,6 +40,7 @@ export default function Operator() {
   // register-found form
   const [showReg, setShowReg] = useState(false);
   const [reg, setReg] = useState({ physical_description: "", name_if_known: "", approximate_age: "", gender: "", language_spoken: "" });
+  const [regPhoto, setRegPhoto] = useState<string | null>(null);
   const [regBusy, setRegBusy] = useState(false);
 
   // blast-this-zone
@@ -114,8 +116,10 @@ export default function Operator() {
         gender: reg.gender || null,
         language_spoken: reg.language_spoken || null,
         registered_at_booth: booth?.id ?? null,
+        photo_url: regPhoto,
       });
       setReg({ physical_description: "", name_if_known: "", approximate_age: "", gender: "", language_spoken: "" });
+      setRegPhoto(null);
       setShowReg(false);
       await findMatches(res.found_id, res.case_id);
     } catch (e) {
@@ -159,6 +163,7 @@ export default function Operator() {
               <option value="">{t("in.gender")}</option><option value="male">{t("in.male")}</option><option value="female">{t("in.female")}</option><option value="unknown">{t("in.unknown")}</option>
             </select>
             <input className={inputCls} placeholder={t("op.language")} value={reg.language_spoken} onChange={(e) => setReg({ ...reg, language_spoken: e.target.value })} />
+            <div className="sm:col-span-2"><PhotoUpload photoUrl={regPhoto} onChange={setRegPhoto} compact /></div>
             <button onClick={registerFound} disabled={regBusy || !reg.physical_description.trim()}
               className="nandi-gradient rounded-xl py-2.5 font-semibold text-white disabled:opacity-60 sm:col-span-2">
               {regBusy ? `${t("op.searching")}…` : t("op.registerMatch")}
@@ -200,11 +205,18 @@ export default function Operator() {
                       <span className="text-sm font-bold">{Math.round(c.confidence * 100)}% {t("op.confidence")}</span>
                       <span className="text-xs text-[var(--color-ink-soft)]">{t("op.vector")} {Math.round(c.vector_score * 100)}%</span>
                     </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-base font-bold">{c.subject_name || t("s.nameUnknown")}</span>
-                      <span className="text-sm text-[var(--color-ink-soft)]">{[c.subject_gender, c.subject_age ? `${c.subject_age}y` : null, c.origin_city].filter(Boolean).join(" · ")}</span>
+                    <div className="mt-2 flex gap-3">
+                      {c.photo_url && (
+                        <img src={c.photo_url} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-[var(--color-line)]" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-base font-bold">{c.subject_name || t("s.nameUnknown")}</span>
+                          <span className="text-sm text-[var(--color-ink-soft)]">{[c.subject_gender, c.subject_age ? `${c.subject_age}y` : null, c.origin_city].filter(Boolean).join(" · ")}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{c.physical_description}</p>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{c.physical_description}</p>
                     {c.reasons.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {c.reasons.map((r, i) => (
@@ -253,13 +265,20 @@ export default function Operator() {
                 {r.report_type === "found" && <span className="text-[11px] font-semibold text-[var(--color-saffron-deep)]">{t("s.foundPerson")}</span>}
                 <span className="ml-auto text-[11px] text-[var(--color-ink-soft)]">{timeAgo(r.reported_at)}</span>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-base font-bold">{r.person_name || t("s.nameUnknown")}</span>
-                <span className="text-xs text-[var(--color-ink-soft)]">{r.case_id}</span>
-              </div>
-              <div className="mt-0.5 text-sm text-[var(--color-ink-soft)]">
-                {[r.gender, r.age_band, r.language].filter(Boolean).join(" · ")}
-                {r.last_seen_location && <> · {t("in.lastSeen")} <b className="text-[var(--color-ink)]">{r.last_seen_location}</b></>}
+              <div className="mt-2 flex gap-2.5">
+                {r.photo_url && (
+                  <img src={r.photo_url} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-[var(--color-line)]" />
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-base font-bold">{r.person_name || t("s.nameUnknown")}</span>
+                    <span className="text-xs text-[var(--color-ink-soft)]">{r.case_id}</span>
+                  </div>
+                  <div className="mt-0.5 text-sm text-[var(--color-ink-soft)]">
+                    {[r.gender, r.age_band, r.language].filter(Boolean).join(" · ")}
+                    {r.last_seen_location && <> · {t("in.lastSeen")} <b className="text-[var(--color-ink)]">{r.last_seen_location}</b></>}
+                  </div>
+                </div>
               </div>
             </button>
           ))}
@@ -276,8 +295,15 @@ export default function Operator() {
                 <ChannelBadge channel={active.channel} />
                 <StatusPill status={active.status} />
               </div>
-              <h3 className="mt-3 text-lg font-extrabold">{active.person_name || t("s.nameUnknown")}</h3>
-              <div className="text-xs text-[var(--color-ink-soft)]">{active.case_id}</div>
+              <div className="mt-3 flex items-start gap-3">
+                {active.photo_url && (
+                  <img src={active.photo_url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover ring-1 ring-[var(--color-line)]" />
+                )}
+                <div className="min-w-0">
+                  <h3 className="text-lg font-extrabold">{active.person_name || t("s.nameUnknown")}</h3>
+                  <div className="text-xs text-[var(--color-ink-soft)]">{active.case_id}</div>
+                </div>
+              </div>
 
               <dl className="mt-4 space-y-2 text-sm">
                 {([

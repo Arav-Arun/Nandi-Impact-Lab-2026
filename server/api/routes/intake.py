@@ -63,6 +63,7 @@ class WebReportIn(BaseModel):
     district: Optional[str] = None
     raw_text: Optional[str] = None
     detected_language: Optional[str] = None
+    photo_url: Optional[str] = None          # from POST /media/upload (optional)
 
 
 class FoundIn(BaseModel):
@@ -74,6 +75,7 @@ class FoundIn(BaseModel):
     apparent_city_origin: Optional[str] = None
     current_zone_id: Optional[uuid.UUID] = None
     registered_at_booth: Optional[uuid.UUID] = None
+    photo_url: Optional[str] = None          # from POST /media/upload (optional)
 
 
 @router.post("/extract")
@@ -110,6 +112,7 @@ async def intake_missing(body: WebReportIn, session: AsyncSession = Depends(get_
             gender=_gender(body.gender),
             language_spoken=body.language,
             apparent_city_origin=origin,
+            photo_url=body.photo_url,
         )
     else:
         report = await intake_pipeline.file_missing(
@@ -122,6 +125,7 @@ async def intake_missing(body: WebReportIn, session: AsyncSession = Depends(get_
             last_seen_landmark=body.last_seen_location,
             language_spoken=body.language,
             origin_city=origin,
+            photo_url=body.photo_url,
             channel="web",
         )
     return ok({"id": str(report.id), "case_id": _case_id(report)})
@@ -139,5 +143,6 @@ async def intake_found(body: FoundIn, session: AsyncSession = Depends(get_sessio
         apparent_city_origin=body.apparent_city_origin,
         current_zone_id=body.current_zone_id,
         registered_at_booth=body.registered_at_booth,
+        photo_url=body.photo_url,
     )
     return ok({"found_id": str(report.id), "case_id": _case_id(report), "status": report.status})
