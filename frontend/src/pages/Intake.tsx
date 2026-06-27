@@ -53,7 +53,11 @@ export default function Intake() {
     { v: "Unknown", l: t("in.unknown") },
   ];
 
-  function applyExtracted(ex: Extracted, rawText: string, detectedCode?: string | null) {
+  function applyExtracted(ex: Extracted, rawText: string, detectedCode?: string | null): boolean {
+    if (ex.confidence < 0.15) {
+      alert("We couldn't extract any information from that. Please try describing the person's name, age, clothes, or where they were last seen.");
+      return false;
+    }
     setF((p) => ({
       ...p,
       person_name: ex.person_name ?? p.person_name,
@@ -67,6 +71,7 @@ export default function Intake() {
       district: ex.district ?? p.district,
     }));
     setMeta({ raw_text: rawText, detected_language: detectedCode ?? undefined, extraction_confidence: ex.confidence });
+    return true;
   }
 
   async function onMic() {
@@ -79,8 +84,13 @@ export default function Intake() {
         setDetLang(tr.language_name || tr.language_code);
         setVoiceStage("thinking");
         const ex = await api.extract(tr.transcript, tr.language_code);
-        applyExtracted(ex, tr.transcript, tr.language_code);
-        setVoiceStage("done");
+        const ok = applyExtracted(ex, tr.transcript, tr.language_code);
+        if (ok) {
+          setVoiceStage("done");
+        } else {
+          setTranscript("");
+          setVoiceStage("");
+        }
       } catch (e) {
         alert("Voice processing failed: " + (e as Error).message);
         setVoiceStage("");
@@ -97,9 +107,13 @@ export default function Intake() {
     try {
       setVoiceStage("thinking");
       const ex = await api.extract(freeText);
-      applyExtracted(ex, freeText);
-      setTranscript(freeText);
-      setVoiceStage("done");
+      const ok = applyExtracted(ex, freeText);
+      if (ok) {
+        setTranscript(freeText);
+        setVoiceStage("done");
+      } else {
+        setVoiceStage("");
+      }
     } catch (e) {
       alert((e as Error).message);
       setVoiceStage("");
