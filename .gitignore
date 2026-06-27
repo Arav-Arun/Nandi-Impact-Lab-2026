@@ -1,0 +1,44 @@
+# Project-wide ignores
+
+# Environment / secrets / config
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.eggs/
+**/build/
+**/dist/
+**/.cache/
+**/models/
+**/*.onnx
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.sqlite3
+**/*.db
+**/.venv/
+**/venv/
+**/env/
+
+# Node
+**/node_modules/
+**/dist/
+
+# Editors / OS / Misc
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+**/.idea/
+**/.vscode/
+*.log
+**/*.log

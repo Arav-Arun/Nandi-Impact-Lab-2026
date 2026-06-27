@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NANDI — Python backend dependencies (shared across all members)
+#
+# Member 1 owns this baseline. If you (M2/M3/M4) need a new package, append it
+# under the clearly-marked section for your module at the bottom so merges stay
+# conflict-free. Do NOT bump a pinned version without flagging the team.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Web framework / ASGI server ─────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+pydantic-settings==2.3.4
+python-multipart==0.0.9            # multipart form / file uploads (intake photos)
+
+# ── PostgreSQL + pgvector (source of truth + vector search) ─────────────────
+sqlalchemy[asyncio]==2.0.31
+asyncpg==0.29.0                    # async driver used by the app at runtime
+psycopg2-binary==2.9.9            # sync driver used by Alembic migrations only
+alembic==1.13.2
+pgvector==0.3.0                    # Vector column type + cosine ops
+geoalchemy2==0.15.2              # PostGIS POLYGON columns for zone boundaries
+
+# ── Neo4j (graph validation + landmark patterns) ────────────────────────────
+neo4j==5.22.0                     # official async driver
+
+# ── Redis (Celery broker [M2] + OTP store [M2] + rate limit [M4]) ────────────
+redis==5.0.7
+
+# ── Embeddings: text (multilingual-e5-large) + face (InsightFace) ───────────
+# These are heavy. services/embedding.py lazy-loads them and falls back to a
+# deterministic stub (EMBEDDING_FALLBACK=1) so the rest of the stack — and the
+# other members' code — runs on a laptop with no GPU / no model download.
+sentence-transformers==3.0.1
+numpy==1.26.4
+# insightface==0.7.3              # uncomment on a box with onnxruntime for real faces
+# onnxruntime==1.18.1
+
+# ── Auth helpers (JWT decode for protected routes; M4 issues tokens) ─────────
+python-jose[cryptography]==3.3.0
+
+# ── Testing ─────────────────────────────────────────────────────────────────
+pytest==8.2.2
+pytest-asyncio==0.23.7
+httpx==0.27.0
+
+# ── Member 2 (Notifications) extra deps — add below ─────────────────────────
+# celery==5.4.0
+
+# ── Member 3 (UI) — frontend deps live in booth-app/ and dashboard/ package.json ─
+
+# ── Member 4 (Integration/Infra) extra deps — add below ─────────────────────
+# prometheus-fastapi-instrumentator==7.0.0

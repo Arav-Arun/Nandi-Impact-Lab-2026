@@ -1,0 +1,42 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# ── Environment / secrets ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── ML model caches (multilingual-e5-large, InsightFace) ────────────────────
+.cache/
+models/
+*.onnx
+~/.insightface/
+
+# ── Test / tooling ──────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Editors / OS ────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+
+# ── Frontend (M3/M4) ────────────────────────────────────────────────────────
+node_modules/
+booth-app/dist/
+dashboard/dist/
+
+# ── Local data ──────────────────────────────────────────────────────────────
+*.sqlite3
+*.db

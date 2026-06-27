@@ -1,0 +1,80 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# NANDI — DEV-ONLY convenience stack (Member 1 / backend dev).
+#
+#   ┌───────────────────────────────────────────────────────────────────────┐
+#   │ THIS IS NOT THE CANONICAL INFRASTRUCTURE.                              │
+#   │ Member 4 owns infra/docker-compose.yml and the production stack        │
+#   │ (TLS, secrets, Celery workers, reverse proxy, backups, etc.).          │
+#   │ This file is a throwaway local stack so a backend dev can spin up the   │
+#   │ three stateful services (Postgres+pgvector+PostGIS, Neo4j, Redis) and   │
+#   │ run the app + Alembic + seeds from the host .venv. Do not deploy this.  │
+#   └───────────────────────────────────────────────────────────────────────┘
+#
+# Port mappings are host-friendly (localhost:5432/7474/7687/6379) so the host
+# .venv can connect using the .env.example defaults
+# (DATABASE_URL=...@localhost:5432, NEO4J_URI=bolt://localhost:7687,
+# REDIS_URL=redis://localhost:6379/0). The in-container service hostname for the
+# DB is `db`; if you run the app *inside* a container later, point DATABASE_URL
+# host at `db` instead of localhost.
+# ═════════════════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    # Built from docker/postgres.Dockerfile = postgis/postgis:16-3.4 + pgvector.
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
+    image: nandi-postgres-dev:16
+    environment:
+      POSTGRES_USER: nandi
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: nandi
+    ports:
+      # 5433 on the host: a pre-existing host Postgres already owns 5432 on this box.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nandi -d nandi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5.22-community
+    environment:
+      # Defaults match .env.example (neo4j / changeme). Override via shell env:
+      #   NEO4J_USER=neo4j NEO4J_PASSWORD=secret docker compose up -d
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-changeme}"
+    ports:
+      - "7474:7474"   # HTTP / Neo4j Browser
+      - "7687:7687"   # Bolt (NEO4J_URI=bolt://localhost:7687)
+    volumes:
+      - neo4jdata:/data
+    healthcheck:
+      # cypher-shell ships in the image; a trivial query proves auth + readiness.
+      test:
+        - "CMD-SHELL"
+        - "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-changeme} 'RETURN 1' || exit 1"
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"   # REDIS_URL=redis://localhost:6379/0
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  neo4jdata:

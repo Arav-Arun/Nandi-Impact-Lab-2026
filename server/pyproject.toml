@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NANDI backend — project + tooling config.
+# The backend is a flat package layout (core/, db/, services/, api/, ...) so all
+# four members merge files into the same top-level packages without collisions.
+# ─────────────────────────────────────────────────────────────────────────────
+[project]
+name = "nandi"
+version = "2.0.0"
+description = "NANDI — Missing Persons Reunification System (Kumbh Mela 2027)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+# asyncio_mode=auto lets async test functions run without an explicit marker.
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra -q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Keep linting light for a hackathon; flag real bugs, not style nits.
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]  # long lines tolerated (Cypher / SQL strings)

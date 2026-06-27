@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* ── NANDI design system — duotone: ink + saffron on warm-gray neutrals ──────
+   One accent (saffron) carries every highlight, action, and chart series; ink
+   and warm grays do everything else. No second hue. White space, hairline
+   borders, near-black pill buttons. Restraint over decoration. */
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Newsreader", "Noto Serif Devanagari", Georgia, serif;
+  --font-deva: "Noto Sans Devanagari", "Plus Jakarta Sans", sans-serif;
+  --font-deva-serif: "Noto Serif Devanagari", "Newsreader", serif;
+
+  --color-bg: #ffffff;
+  --color-bg-soft: #faf8f4;        /* warm paper */
+  --color-surface: #ffffff;
+  --color-ink: #1f1a14;            /* warm near-black */
+  --color-ink-soft: #6c6358;       /* warm gray */
+  --color-line: #ece6db;           /* warm hairline */
+  --color-line-2: #e0d8c9;
+
+  /* the single accent */
+  --color-saffron: #e0852b;
+  --color-saffron-deep: #b4641a;
+  --color-saffron-soft: #f6dab4;
+
+  /* legacy token names remapped onto the duotone so existing markup keeps
+     working without touching every className (all resolve to ink/saffron). */
+  --color-indigo: #e0852b;
+  --color-iris: #c0762e;
+  --color-periwinkle: #cf9350;
+  --color-peri-soft: #f6dab4;
+  --color-peach: #e0852b;
+  --color-peach-soft: #f0b878;
+  --color-green: #1f1a14;          /* "resolved" reads as calm ink, not a 2nd hue */
+  --color-violet: #e0852b;
+  --color-paper: #ffffff;
+  --color-paper-2: #faf8f4;
+
+  /* status: saffron = needs attention; ink/gray = settled. No extra hues. */
+  --color-ok: #7a6a52;
+  --color-warn: #e0852b;
+  --color-danger: #b4641a;
+
+  --radius-card: 1.25rem;
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background:
+      radial-gradient(900px 460px at 50% -8%, rgba(224, 133, 43, 0.10), transparent 60%),
+      var(--color-bg-soft);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  :lang(mr), :lang(hi), .deva { font-family: var(--font-deva); }
+  * { box-sizing: border-box; }
+  ::selection { background: var(--color-saffron-soft); }
+  :focus-visible { outline: 2px solid var(--color-saffron); outline-offset: 2px; border-radius: 4px; }
+}
+
+/* Display serif */
+.serif { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.01em; }
+.deva-serif { font-family: var(--font-deva-serif); }
+
+/* The mark / primary actions — solid saffron (no multi-hue gradient) */
+.nandi-gradient { background-color: var(--color-saffron); }
+.nandi-gradient:hover { background-color: var(--color-saffron-deep); }
+.text-gradient { color: var(--color-saffron); }
+
+/* Buttons */
+.btn-dark {
+  background: var(--color-ink); color: #fff;
+  border-radius: 9999px; font-weight: 600;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.btn-dark:hover { opacity: .92; }
+.btn-dark:active { transform: translateY(1px); }
+.btn-ghost {
+  background: #fff; color: var(--color-ink);
+  border: 1px solid var(--color-line-2); border-radius: 9999px; font-weight: 600;
+}
+.btn-ghost:hover { border-color: var(--color-saffron); }
+
+/* Cards — flat, hairline, soft */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 1px rgba(31, 26, 20, 0.03), 0 14px 40px -28px rgba(31, 26, 20, 0.22);
+}
+
+/* Animations — subtle, reduced-motion aware */
+@keyframes nandi-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+.animate-rise { animation: nandi-rise .4s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes nandi-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+.animate-livepulse { animation: nandi-pulse 1.7s ease-in-out infinite; }
+@keyframes nandi-halo { 0% { box-shadow: 0 0 0 0 rgba(224,133,43,.35); } 100% { box-shadow: 0 0 0 22px rgba(224,133,43,0); } }
+.animate-halo { animation: nandi-halo 1.5s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise, .animate-livepulse, .animate-halo { animation: none; }
+}
