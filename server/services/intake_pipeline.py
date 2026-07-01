@@ -1,10 +1,10 @@
 """
-services.intake_pipeline — the one funnel every intake channel shares (M2).
+services.intake_pipeline - the one funnel every intake channel shares (M2).
 
 Web form, Telegram, and WhatsApp all end here. Given already-extracted fields it:
   1. writes the SQL row (MissingReport / FoundReport) with a passage embedding,
-  2. MERGEs the graph node (services.neo4j_client — for the validation queries),
-  3. flags likely duplicates (services.dedup — non-blocking),
+  2. MERGEs the graph node (services.neo4j_client - for the validation queries),
+  3. flags likely duplicates (services.dedup - non-blocking),
   4. logs a `filed` audit event (services.case_events),
   5. broadcasts a feed item to live dashboard sockets (services.hub).
 
@@ -23,36 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.logging_utils import get_logger, mask_phone
 from db.models import Booth, FoundReport, MissingReport, Zone
 from schemas.common import EventType
-from services import media_store
 from services.case_events import log_event
 from services.dedup import flag_duplicates_on_intake
-from services.embedding import embed_face, embed_text
+from services.embedding import embed_text
 from services.hub import hub
 from services.neo4j_client import neo4j_client
 
 log = get_logger("nandi.intake")
-
-
-def _face_vector(photo_url: str | None) -> list[float] | None:
-    """
-    Compute the face embedding for a stored photo (None when there is no photo).
-
-    Photos are stored by api.routes.media → services.media_store; we re-read the
-    bytes here so the face vector is computed exactly once, at intake, and stored
-    on the report for the matcher's photo re-rank step (SoW §6). Best-effort: any
-    failure (no face detected, decode error) degrades to None — photos are
-    optional everywhere (SoW §12.8 #5) and never block a report.
-    """
-    if not photo_url:
-        return None
-    try:
-        data = media_store.read_photo_by_url(photo_url)
-        if not data:
-            return None
-        return embed_face(data)
-    except Exception as exc:  # never let a bad image block intake
-        log.warning("face embedding failed for %s (%s); continuing without it", photo_url, exc)
-        return None
 
 
 _AGE_BANDS = [(0, 12, "0-12"), (13, 17, "13-17"), (18, 40, "18-40"),
@@ -66,6 +43,18 @@ def age_band(age: int | None) -> str | None:
         if lo <= age <= hi:
             return band
     return "80+" if age > 80 else None
+
+
+def is_priority(age: int | None, status: str) -> bool:
+    """Vulnerable-person flag: an open case for a child (≤12) or elder (≥70).
+
+    Learnt from past-Kumbh lapses - the most at-risk (small children, frail
+    elders) must jump the queue and can be broadcast immediately, not after the
+    normal 24h escalation window.
+    """
+    if status in ("reunited", "closed"):
+        return False
+    return age is not None and (age <= 12 or age >= 70)
 
 
 async def resolve_zone_by_text(session: AsyncSession, text: str | None) -> "uuid.UUID | None":
@@ -120,6 +109,7 @@ def feed_item(report: MissingReport | FoundReport, kind: str, channel: str = "we
         "detected_language": report.language_spoken,
         "extraction_confidence": None,
         "photo_url": report.photo_url,
+        "priority": is_priority(age, report.status),
     }
 
 
@@ -139,9 +129,10 @@ async def file_missing(
     photo_url: str | None = None,
     channel: str = "web",
 ) -> MissingReport:
-    desc = (physical_description or "").strip() or "—"
+    desc = (physical_description or "").strip() or "-"
     if last_seen_zone_id is None:
         last_seen_zone_id = await resolve_zone_by_text(session, last_seen_landmark)
+
     report = MissingReport(
         filed_by_phone=(filed_by_phone or "unknown").strip() or "unknown",
         physical_description=desc,
@@ -156,7 +147,6 @@ async def file_missing(
         photo_url=photo_url,
         status="active",
         embedding=embed_text(desc, kind="passage"),
-        face_embedding=_face_vector(photo_url),
     )
     session.add(report)
     await session.flush()  # assign id + server defaults (filed_at)
@@ -189,11 +179,12 @@ async def file_found(
     apparent_city_origin: str | None = None,
     photo_url: str | None = None,
 ) -> FoundReport:
-    desc = (physical_description or "").strip() or "—"
+    desc = (physical_description or "").strip() or "-"
     if current_zone_id is None and registered_at_booth is not None:
         current_zone_id = (await session.execute(
             select(Booth.zone_id).where(Booth.id == registered_at_booth)
         )).scalar_one_or_none()
+
     report = FoundReport(
         physical_description=desc,
         name_if_known=name_if_known,
@@ -206,7 +197,6 @@ async def file_found(
         photo_url=photo_url,
         status="unmatched",
         embedding=embed_text(desc, kind="passage"),
-        face_embedding=_face_vector(photo_url),
     )
     session.add(report)
     await session.flush()

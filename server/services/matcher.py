@@ -1,16 +1,15 @@
 """
-services.matcher — the matching pipeline (Member 1, the "matching brain").
+services.matcher - the matching pipeline (Member 1, the "matching brain").
 
 Given a found-person report id, return the top candidate missing reports for the
 booth operator to confirm. Pipeline (SoW §6):
 
     found report ─▶ pgvector ANN (gender+age pre-filter, cosine rank)
-                 ─▶ photo re-rank (InsightFace cosine, when both have faces)
                  ─▶ Neo4j validation per surviving candidate
                  ─▶ composite confidence + reason labels
                  ─▶ drop < MIN_SURFACE, sort by confidence, return top N
 
-This module never notifies anyone and never auto-confirms — it only ranks. The
+This module never notifies anyone and never auto-confirms - it only ranks. The
 operator confirmation (the safety contract, SoW §12.8 #1) happens in the route.
 """
 
@@ -33,7 +32,7 @@ log = get_logger(__name__)
 
 class FoundNotFoundError(LookupError):
     """Raised when a found_report id has no matching row. The route maps this to a
-    404 — distinct from any other error, which must surface as a real 500 rather
+    404 - distinct from any other error, which must surface as a real 500 rather
     than being mislabeled 'not found'."""
 
 
@@ -77,7 +76,7 @@ async def _vector_candidates(
     Run the pgvector ANN search with gender/age pre-filtering (SoW §5.2).
 
     Pre-filters (gender, age window, status=active) shrink the search space
-    before the cosine comparison — HNSW supports WHERE pre-filtering from PG16+.
+    before the cosine comparison - HNSW supports WHERE pre-filtering from PG16+.
     Returns [(missing_report, cosine_similarity)] ordered best-first.
 
     Robustness beyond the literal SoW query:
@@ -119,31 +118,6 @@ async def _vector_candidates(
     return out
 
 
-def _photo_rerank(
-    found: FoundReport, candidates: list[tuple[MissingReport, float]]
-) -> list[tuple[MissingReport, float]]:
-    """
-    Re-order candidates by face similarity when both sides have a face vector.
-
-    The displayed/scored `vector_score` stays the TEXT cosine (SoW §6.2 base);
-    faces only influence WHICH candidates advance to graph validation. When the
-    found person has no face vector, ordering is unchanged.
-    """
-    # face_embedding is a numpy array or None — never use bare truthiness on it.
-    if found.face_embedding is None:
-        return candidates
-
-    def rank_key(item: tuple[MissingReport, float]) -> float:
-        missing, text_sim = item
-        if missing.face_embedding is not None:
-            # Strong identity signal — rank by face similarity.
-            return embedding.cosine_similarity(found.face_embedding, missing.face_embedding)
-        # No face on this candidate: fall back to its text similarity.
-        return text_sim
-
-    return sorted(candidates, key=rank_key, reverse=True)
-
-
 async def find_candidates(session: AsyncSession, found_id: uuid.UUID) -> list[MatchCandidate]:
     """
     Full pipeline entry point. Returns ranked MatchCandidate list (may be empty).
@@ -158,7 +132,7 @@ async def find_candidates(session: AsyncSession, found_id: uuid.UUID) -> list[Ma
     # Search vector: the stored found embedding (a passage vector). If it is
     # missing (embed failed at intake), embed the description on the fly as a
     # query so matching still works rather than returning nothing.
-    # NB: embedding columns come back from pgvector as numpy arrays — test for
+    # NB: embedding columns come back from pgvector as numpy arrays - test for
     # None/length explicitly (bare truthiness on an ndarray raises ValueError).
     query_vec = found.embedding
     if query_vec is None or len(query_vec) == 0:
@@ -172,8 +146,8 @@ async def find_candidates(session: AsyncSession, found_id: uuid.UUID) -> list[Ma
     if not ranked:
         return []
 
-    # 2) photo re-rank, then keep only the slots the operator will see
-    ranked = _photo_rerank(found, ranked)[: settings.MATCH_RETURN_LIMIT]
+    # 2) keep only the slots the operator will see
+    ranked = ranked[: settings.MATCH_RETURN_LIMIT]
 
     # Seed the found node once so the graph validation queries can traverse it.
     await neo4j_client.sync_found_report(
@@ -223,7 +197,7 @@ async def find_candidates(session: AsyncSession, found_id: uuid.UUID) -> list[Ma
         confidence, reasons = scoring.composite_confidence(text_sim, signals)
         band = scoring.confidence_band(confidence)
         if band is None:
-            # Below the surface floor (< 0.60) — never shown to the operator.
+            # Below the surface floor (< 0.60) - never shown to the operator.
             continue
 
         results.append(

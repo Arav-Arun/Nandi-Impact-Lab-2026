@@ -1,13 +1,13 @@
 """
-core.redis_client — shared async Redis connection.
+core.redis_client - shared async Redis connection.
 
 Redis is used by several members:
-  • M2  — OTP store (key `otp:{case_id}`) and blast idempotency keys
-  • M4  — rate limiting
-  • M1  — short-lived caches (optional)
+  • M2  - OTP store (key `otp:{case_id}`) and blast idempotency keys
+  • M4  - rate limiting
+  • M1  - short-lived caches (optional)
 
 This module just exposes one shared client and a FastAPI dependency. The actual
-OTP / rate-limit logic lives in each owner's module — keep it that way so the
+OTP / rate-limit logic lives in each owner's module - keep it that way so the
 connection setup stays in exactly one place.
 """
 

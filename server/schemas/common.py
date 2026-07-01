@@ -1,5 +1,5 @@
 """
-schemas.common — enums and small shared types used across the API contract.
+schemas.common - enums and small shared types used across the API contract.
 
 Keeping these here (rather than scattering string literals) means M2's intake,
 M3's dashboard, and M1's matcher all agree on the exact allowed values.
@@ -11,7 +11,7 @@ from enum import Enum
 
 
 class Gender(str, Enum):
-    """SoW §5.1 — subject_gender / gender values."""
+    """SoW §5.1 - subject_gender / gender values."""
 
     male = "male"
     female = "female"
@@ -22,7 +22,8 @@ class MissingStatus(str, Enum):
     """missing_reports.status lifecycle."""
 
     active = "active"
-    matched = "matched"
+    matched = "matched"      # operator confirmed a candidate; family being notified
+    reunited = "reunited"    # family verified the OTP at the booth (loop closed)
     closed = "closed"
     duplicate = "duplicate"
 
@@ -32,14 +33,16 @@ class FoundStatus(str, Enum):
 
     unmatched = "unmatched"
     matched = "matched"
+    reunited = "reunited"
     closed = "closed"
 
 
 class EventType(str, Enum):
-    """case_events.event_type — the full audit vocabulary (SoW §5.1)."""
+    """case_events.event_type - the full audit vocabulary (SoW §5.1)."""
 
     filed = "filed"
     matched = "matched"
+    reunited = "reunited"
     blast_zone_sent = "blast_zone_sent"
     blast_event_sent = "blast_event_sent"
     closed = "closed"

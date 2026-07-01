@@ -1,8 +1,8 @@
 """
-services.dedup — duplicate missing-report detection (Member 1).
+services.dedup - duplicate missing-report detection (Member 1).
 
 Two families file the same lost child from two booths → two near-identical
-missing reports. We FLAG these (never block — SoW: flag on create, not block) so
+missing reports. We FLAG these (never block - SoW: flag on create, not block) so
 operators and the dashboard can collapse them, and so a candidate that is itself
 a likely duplicate gets a small confidence penalty.
 
@@ -56,7 +56,7 @@ async def flag_duplicates_on_intake(session: AsyncSession, report: MissingReport
     Check a freshly-filed missing report for duplicates and log an audit event.
 
     Non-blocking and best-effort. Returns the duplicate count found (0 if none or
-    on any error). Does NOT change the report's status — humans decide whether to
+    on any error). Does NOT change the report's status - humans decide whether to
     actually merge; we only surface the suspicion.
     """
     try:
@@ -76,5 +76,5 @@ async def flag_duplicates_on_intake(session: AsyncSession, report: MissingReport
             log.info("flagged %d possible duplicate(s) for missing report %s", count, report.id)
         return count
     except Exception as exc:  # never block intake on a dedup hiccup
-        log.warning("duplicate check failed for %s (%s) — skipping.", report.id, exc)
+        log.warning("duplicate check failed for %s (%s) - skipping.", report.id, exc)
         return 0

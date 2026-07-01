@@ -1,4 +1,4 @@
-// sync_found_report — idempotently upsert a FoundReport and its satellites.
+// sync_found_report - idempotently upsert a FoundReport and its satellites.
 //
 // Params (set by services.neo4j_client.sync_found_report):
 //   $id $found_at $status $name $age $gender $origin_city $language
@@ -20,7 +20,7 @@ MERGE (p:Person {ref: 'found:' + $id})
       p.language_spoken = $language
 MERGE (f)-[:DESCRIBES]->(p)
 
-// Apparent city of origin — only when known.
+// Apparent city of origin - only when known.
 FOREACH (_ IN CASE WHEN $origin_city IS NULL THEN [] ELSE [1] END |
   MERGE (c:City {name: $origin_city})
   MERGE (p)-[:FROM_CITY]->(c)

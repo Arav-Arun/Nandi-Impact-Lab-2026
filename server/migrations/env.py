@@ -1,7 +1,7 @@
 """
 Alembic migration environment.
 
-Runs migrations SYNCHRONOUSLY (psycopg2) even though the app is async — Alembic
+Runs migrations SYNCHRONOUSLY (psycopg2) even though the app is async - Alembic
 has no async story we need here. The sync URL is derived from the single
 DATABASE_URL via settings.SYNC_DATABASE_URL.
 

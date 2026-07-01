@@ -1,12 +1,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# NANDI backend — project + tooling config.
+# NANDI backend - project + tooling config.
 # The backend is a flat package layout (core/, db/, services/, api/, ...) so all
 # four members merge files into the same top-level packages without collisions.
 # ─────────────────────────────────────────────────────────────────────────────
 [project]
 name = "nandi"
 version = "2.0.0"
-description = "NANDI — Missing Persons Reunification System (Kumbh Mela 2027)"
+description = "NANDI - Missing Persons Reunification System (Kumbh Mela 2027)"
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]

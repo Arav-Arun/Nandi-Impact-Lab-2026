@@ -1,5 +1,5 @@
 """
-db.blast_models — Member 2's multi-channel blast recipient table.
+db.blast_models - Member 2's multi-channel blast recipient table.
 
 Kept separate from db/models.py (Member 1) so the schema add is additive. A
 Subscriber is anyone who can be reached for a location blast on one channel:

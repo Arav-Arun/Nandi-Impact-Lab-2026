@@ -1,5 +1,5 @@
 """
-scripts.refresh_views — refresh the dashboard materialized view(s).
+scripts.refresh_views - refresh the dashboard materialized view(s).
 
 `zone_case_summary` powers the dashboard zone aggregates (M3). It must be
 refreshed on a cadence (SoW §5.1: "every 5 minutes"). Member 1 owns this; we keep
@@ -10,7 +10,7 @@ it deployment-agnostic so it can be driven three ways without code changes:
   • Celery beat (M2):                  await refresh_zone_case_summary()  as a task
 
 CONCURRENTLY avoids locking the view against dashboard reads, but it requires a
-unique index on the view and cannot run in a transaction block — we fall back to
+unique index on the view and cannot run in a transaction block - we fall back to
 a plain refresh if CONCURRENTLY is not yet supported by the view definition.
 """
 
@@ -43,7 +43,7 @@ async def refresh_zone_case_summary() -> None:
             try:
                 await conn.execute(text(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {view}"))
             except Exception:
-                # No unique index yet, or first refresh after creation — plain refresh.
+                # No unique index yet, or first refresh after creation - plain refresh.
                 await conn.execute(text(f"REFRESH MATERIALIZED VIEW {view}"))
             log.info("refreshed materialized view %s", view)
 

@@ -1,5 +1,5 @@
 """
-services.sarvam — Sarvam AI: native Indian-language speech-to-text + translation (M2).
+services.sarvam - Sarvam AI: native Indian-language speech-to-text + translation (M2).
 
 Used by the intake layer to turn a voice note (Telegram / WhatsApp / web recorder)
 into text the extractor and matcher can use. When SARVAM_API_KEY is absent every

@@ -1,5 +1,5 @@
 """
-api.deps — re-exports of the common FastAPI dependencies.
+api.deps - re-exports of the common FastAPI dependencies.
 
 Importing from one place keeps route files tidy and gives the other members a
 single, stable import path:

@@ -1,19 +1,19 @@
 """
-services.blast — location-based multi-channel blast + escalation (M2).
+services.blast - Kumbh-scale zone broadcast + escalation.
 
-Given a zone, gather everyone reachable there (opt-in `subscribers` across SMS /
-WhatsApp / Telegram / Email, plus the IVR `registrants` phone list), optionally
-widen to graph-adjacent zones, and fan the message out via services.notify. Every
-blast writes a `blast_zone_sent` audit event (SoW §5.1) through the shared writer.
+Reaching crores of pilgrims can't be done by fanning out to individually opted-in
+recipients. So the mass channel is a **per-zone public Telegram channel** that
+pilgrims join via a QR code at the booths: a broadcast posts ONE message to each
+target zone's channel and reaches every member instantly. Email subscribers are
+kept for registered families/officials (a bounded, direct list).
 
-Escalation timeline (SoW): a still-open report past T+24h triggers a zone re-blast;
-past T+72h it is escalated to police. The cadence is driven by scripts/blast_worker.py.
+Escalation: a still-open report past T+24h triggers a zone re-broadcast; past
+T+72h it escalates to police. Cadence lives in scripts/blast_worker.py.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from core.logging_utils import get_logger
 from db.blast_models import Subscriber
-from db.models import CaseEvent, MissingReport, Registrant
+from db.models import CaseEvent, MissingReport, Zone
 from schemas.common import EventType
 from services import notify
 from services.case_events import log_event
@@ -48,7 +48,7 @@ async def upsert_subscriber(
     session: AsyncSession, *, channel: str, address: str,
     zone_id: uuid.UUID | None = None, name: str | None = None, language: str | None = None,
 ) -> Subscriber:
-    """Add or update a blast subscriber (idempotent on channel+address)."""
+    """Add or update a direct subscriber (idempotent on channel+address)."""
     existing = (await session.execute(
         select(Subscriber).where(Subscriber.channel == channel, Subscriber.address == address)
     )).scalar_one_or_none()
@@ -66,22 +66,16 @@ async def upsert_subscriber(
     return sub
 
 
-async def resolve_recipients(session: AsyncSession, zone_ids: set[uuid.UUID]) -> dict[str, list[str]]:
-    """Addresses to reach in these zones, grouped by channel (deduplicated)."""
-    out: dict[str, list[str]] = defaultdict(list)
+async def _zone_emails(session: AsyncSession, zone_ids: set[uuid.UUID]) -> list[str]:
+    """Deduplicated email addresses opted into these zones (direct family/official list)."""
     if not zone_ids:
-        return out
-    subs = (await session.execute(
-        select(Subscriber.channel, Subscriber.address).where(Subscriber.zone_id.in_(zone_ids))
-    )).all()
-    for channel, address in subs:
-        out[channel].append(address)
-    regs = (await session.execute(
-        select(Registrant.phone).where(Registrant.zone_id.in_(zone_ids))
-    )).all()
-    for (phone,) in regs:
-        out["sms"].append(phone)
-    return {ch: list(dict.fromkeys(addrs)) for ch, addrs in out.items()}
+        return []
+    rows = (await session.execute(
+        select(Subscriber.address).where(
+            Subscriber.channel == "email", Subscriber.zone_id.in_(zone_ids)
+        )
+    )).scalars().all()
+    return list(dict.fromkeys(rows))
 
 
 async def blast_zone(
@@ -93,34 +87,53 @@ async def blast_zone(
     report_id: uuid.UUID | None = None,
     event_type: EventType = EventType.blast_zone_sent,
 ) -> dict:
-    """Fan `message` out to everyone in `zone_id` (+ adjacent zones if enabled)."""
+    """
+    Broadcast `message` across `zone_id` (+ adjacent zones if enabled).
+
+    Posts once to each target zone's Telegram channel (mass reach) and emails the
+    zone's registered recipients. Returns a summary with the estimated reach.
+    """
     zone_ids = {zone_id}
     if settings.BLAST_INCLUDE_ADJACENT:
         zone_ids |= await adjacent_zone_ids(zone_id)
 
-    recipients = await resolve_recipients(session, zone_ids)
-    allowed = set(channels) if channels else None
+    allow = set(channels) if channels else None
+    zones = (await session.execute(select(Zone).where(Zone.id.in_(zone_ids)))).scalars().all()
 
-    summary: dict[str, dict] = {}
-    for channel, addresses in recipients.items():
-        if allowed and channel not in allowed:
-            continue
-        sent = 0
-        for addr in addresses:
-            if await notify.send(channel, addr, message, subject=subject):
-                sent += 1
-        summary[channel] = {"targeted": len(addresses), "sent": sent}
+    # 1) Telegram channels - one post per zone reaches every joined member.
+    posts: list[dict] = []
+    reach = 0
+    if not allow or "telegram" in allow:
+        for z in zones:
+            if not z.telegram_channel:
+                continue
+            sent = await notify.send_telegram(z.telegram_channel, f"{subject}\n\n{message}")
+            members = await notify.telegram_member_count(z.telegram_channel)
+            reach += members or 0
+            posts.append({"zone": z.name, "channel": z.telegram_channel,
+                          "sent": sent, "members": members})
 
-    targeted = sum(v["targeted"] for v in summary.values())
+    # 2) Email - bounded direct list of registered families/officials.
+    email_summary = {"targeted": 0, "sent": 0}
+    if not allow or "email" in allow:
+        emails = await _zone_emails(session, zone_ids)
+        email_summary["targeted"] = len(emails)
+        for addr in emails:
+            if await notify.send_email(addr, message, subject=subject):
+                email_summary["sent"] += 1
+        reach += len(emails)
+
+    result = {
+        "zones": [str(z) for z in zone_ids],
+        "channels_posted": posts,
+        "email": email_summary,
+        "targeted": reach,            # estimated total people reached
+    }
     if report_id:
-        await log_event(session, report_id=report_id, event_type=event_type, metadata={
-            "zones": [str(z) for z in zone_ids],
-            "channels": summary,
-            "targeted": targeted,
-        })
-    log.info("blast zone=%s zones=%d targeted=%d sent=%s",
-             zone_id, len(zone_ids), targeted, {k: v["sent"] for k, v in summary.items()})
-    return {"zones": [str(z) for z in zone_ids], "channels": summary, "targeted": targeted}
+        await log_event(session, report_id=report_id, event_type=event_type, metadata=result)
+    log.info("broadcast zone=%s zones=%d channels=%d emails=%d reach≈%d",
+             zone_id, len(zone_ids), len(posts), email_summary["targeted"], reach)
+    return result
 
 
 async def open_reports_past(session: AsyncSession, *, hours: int, without_event: EventType) -> list[MissingReport]:

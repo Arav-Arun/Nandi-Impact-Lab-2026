@@ -1,4 +1,4 @@
-// landmark_pattern_match — does THIS candidate's (last-seen landmark → found
+// landmark_pattern_match - does THIS candidate's (last-seen landmark → found
 // booth) flow match a historically common pattern learned from confirmed matches?
 //
 // Params: $missing_id $found_id $min_times

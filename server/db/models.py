@@ -1,19 +1,15 @@
 """
-db.models — SQLAlchemy 2.0 models for the NANDI PostgreSQL schema (SoW §5.1).
+db.models - SQLAlchemy 2.0 models for the NANDI PostgreSQL schema (SoW §5.1).
 
 These tables are the source of truth for the whole system. Member 1 owns this
 file; the other members read from / write to these tables but should not change
 the schema without a heads-up (every change ripples into the Alembic migration,
-the embedding dim, and the HNSW index — SoW §12.5).
+the embedding dim, and the HNSW index - SoW §12.5).
 
 Conventions (SoW §12.4 / §12.5):
   • Every primary key is a UUID (no integer auto-increment) so offline
     booth-generated ids never collide with server ids on sync.
-  • Text embedding columns are vector(1024) — multilingual-e5-large output dim.
-  • Face embedding columns are vector(512) — InsightFace buffalo_l (ArcFace).
-    NOTE: face_embedding is a Member-1 extension beyond the SoW §5.1 listing; it
-    is required by the photo re-ranking step (SoW §6) which has nowhere else to
-    store a face vector. It is nullable — photos are optional everywhere.
+  • Text embedding columns are vector(1024) - multilingual-e5-large output dim.
 
 The HNSW indexes, the partial `status='active'` index, and the
 `zone_case_summary` materialized view are created in the Alembic migration
@@ -43,10 +39,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.config import settings
 from db.base import Base
 
-# Embedding dimensions are read from settings so they stay in lock-step with the
-# model config and the migration. Changing these requires re-indexing (SoW §12.5).
-TEXT_DIM = settings.EMBEDDING_DIM        # 1024 — multilingual-e5-large
-FACE_DIM = settings.FACE_EMBEDDING_DIM   # 512  — InsightFace buffalo_l
+# Text embedding dimension is read from settings so it stays in lock-step with
+# the model config and the migration. Changing it requires re-indexing (SoW §12.5).
+TEXT_DIM = settings.EMBEDDING_DIM        # 1024 - multilingual-e5-large
 
 
 def _uuid_pk() -> Mapped[uuid.UUID]:
@@ -74,6 +69,9 @@ class Zone(Base):
     )
     color_code: Mapped[str] = mapped_column(Text, nullable=False)      # wristband colour hex
     display_name_marathi: Mapped[str] = mapped_column(Text, nullable=False)
+    # Public Telegram channel (@username or -100… chat id) pilgrims join via QR.
+    # A zone broadcast posts once here to reach every member. See services.blast.
+    telegram_channel: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     booths: Mapped[list["Booth"]] = relationship(back_populates="zone")
 
@@ -95,7 +93,7 @@ class Booth(Base):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Travel groups (bus / temple / village groups) — group identity is crucial
+# Travel groups (bus / temple / village groups) - group identity is crucial
 # ─────────────────────────────────────────────────────────────────────────────
 class Group(Base):
     __tablename__ = "groups"
@@ -153,8 +151,6 @@ class MissingReport(Base):
     )
     # Text embedding of `physical_description` (passage). 1024-dim. HNSW indexed.
     embedding: Mapped[list[float] | None] = mapped_column(Vector(TEXT_DIM), nullable=True)
-    # Face embedding from photo (512-dim, InsightFace). Optional, used for re-rank.
-    face_embedding: Mapped[list[float] | None] = mapped_column(Vector(FACE_DIM), nullable=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -185,11 +181,10 @@ class FoundReport(Base):
     )
     operator_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(TEXT_DIM), nullable=True)
-    face_embedding: Mapped[list[float] | None] = mapped_column(Vector(FACE_DIM), nullable=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Audit trail — every state change is logged here (SoW §5.1 case_events)
+# Audit trail - every state change is logged here (SoW §5.1 case_events)
 # ─────────────────────────────────────────────────────────────────────────────
 class CaseEvent(Base):
     __tablename__ = "case_events"

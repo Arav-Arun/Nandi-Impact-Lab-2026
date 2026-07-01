@@ -1,12 +1,12 @@
 """
-core.responses — the one response envelope every NANDI route returns (SoW §12.1).
+core.responses - the one response envelope every NANDI route returns (SoW §12.1).
 
     Success:  { "data": {...}, "error": null,  "timestamp": "ISO8601" }
     Error:    { "data": null,  "error": {"code": "ERR_CODE", "message": "..."},
                 "timestamp": "ISO8601" }
 
 Use `ok(data)` for success bodies. Raise `ApiError(code, message, status)` for
-handled failures — `register_exception_handlers(app)` turns it (and any
+handled failures - `register_exception_handlers(app)` turns it (and any
 unhandled exception) into the envelope shape. This keeps all four members'
 endpoints wire-compatible so the frontend (M3/M4) parses one shape everywhere.
 """
@@ -75,7 +75,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:
-        # Last line of defence — never leak a stack trace in the body.
+        # Last line of defence - never leak a stack trace in the body.
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=err("INTERNAL_ERROR", "An unexpected error occurred"),

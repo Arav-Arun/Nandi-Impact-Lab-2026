@@ -1,5 +1,5 @@
 # ═════════════════════════════════════════════════════════════════════════════
-# NANDI — backend dev Makefile (Member 1).
+# NANDI - backend dev Makefile (Member 1).
 #
 # Convenience wrappers around the local .venv + the DEV-ONLY docker-compose.yml.
 # Member 4 owns the canonical infra/ + prod tooling; this is for local hacking.

@@ -1,416 +1,193 @@
-<div align="center">
+# 🐂 NANDI - Missing-Persons Reunification
 
-# 🐂 NANDI
+**Simhastha Kumbh Mela 2027 · Nashik–Trimbakeshwar**
 
-### *The patient one. The one who waits at the gate until everyone has come home.*
+NANDI reunites missing people with their families at one of the world's largest
+human gatherings (8–10 crore pilgrims). A family reports a missing person in any
+language - by voice, Telegram, or at a booth. When someone is found and
+registered, NANDI ranks likely matches for a booth operator using **multilingual
+semantic search** (pgvector) and **graph validation** of the venue's geography
+(Neo4j). The operator confirms; the family is notified with a booth location and
+a one-time verification code they present to collect their relative.
 
-**A multilingual, AI-powered missing-persons reunification system for the Simhastha Kumbh Mela 2027**
-*Nashik · Trimbakeshwar · 8–10 crore pilgrims*
+> Built as an **operational control tool**, not a demo: the booth console, the
+> family intake, and the command dashboard are designed for real use on cheap
+> Android phones in bright daylight.
 
-`नंदी` — named after the sacred bull who guards the threshold at Shiva's gate: patient, watchful, always waiting for the lost to return.
-
-<br/>
-
-![NANDI command dashboard](docs/screenshots/overview.png)
-
-</div>
-
----
-
-## 📖 Table of Contents
-
-1. [The Problem](#-the-problem)
-2. [Why We Built This](#-why-we-built-this)
-3. [What NANDI Does](#-what-nandi-does)
-4. [The System in Action](#-the-system-in-action)
-5. [Architecture](#-architecture)
-6. [The Matching Pipeline](#-the-matching-pipeline-the-core)
-7. [Tech Stack](#-tech-stack)
-8. [Key Features](#-key-features)
-9. [Repository Layout](#-repository-layout)
-10. [Getting Started](#-getting-started)
-11. [API Reference](#-api-reference)
-12. [Design Decisions](#-design-decisions-why-this-way)
-13. [Safety Contracts](#-safety-contracts-non-negotiable)
-14. [Roadmap](#-roadmap--out-of-scope)
+<table>
+<tr>
+<td width="50%" align="center"><b>Command dashboard</b><br/><img src="assets/img1.png" alt="Command dashboard"/></td>
+<td width="50%" align="center"><b>Operator console</b><br/><img src="assets/img4.png" alt="Operator console"/></td>
+</tr>
+<tr>
+<td align="center"><b>Family intake &middot; Marathi</b><br/><img src="assets/img3.png" alt="Family intake in Marathi"/></td>
+<td align="center"><b>Zone broadcast</b><br/><img src="assets/img5.png" alt="Zone broadcast"/></td>
+</tr>
+<tr>
+<td align="center"><b>Whole-UI translation &middot; Tamil</b><br/><img src="assets/img2.png" alt="Dashboard translated to Tamil"/></td>
+<td></td>
+</tr>
+</table>
 
 ---
 
-## 🎯 The Problem
+## What it does
 
-The **Simhastha Kumbh Mela 2027** will bring an estimated **8–10 crore pilgrims** to a resident city of 30 lakh. On peak *Shahi Snan* days, a single day's crowd can touch **1 crore**.
+| Surface | For | What happens |
+|---|---|---|
+| **Intake** | Families | Report a missing person by **voice in any of 11 Indian languages** (Sarvam STT) or free text. An LLM extracts name/age/gender/clothing/last-seen into the form. An optional photo is auto-described and folded into the search text. |
+| **Operator** | Booth staff | A live queue of cases. Register a found person → **AI-ranked candidates** with confidence + plain-language reasons. Confirm → verification code → mark reunited when the family arrives. |
+| **Dashboard** | Command centre | Live operational metrics - open workload, escalations, high-risk cases, per-day load, language/channel/age/hotspot breakdowns. |
+| **Broadcast** | Escalation | Reach a whole zone at Kumbh scale by posting once to its **Telegram channel** (see below). |
 
-At the 2025 Maha Kumbh in Prayagraj, **200–300 people were reported missing every single day.** The tools used to find them — PA announcements, paper registers, ad-hoc WhatsApp groups, word of mouth — **don't scale, don't talk to each other, and don't learn.**
+### Highlights
 
-The reality that drives every design decision:
-
-| Constraint | Detail |
-|---|---|
-| **Language** | Marathi 80%, Hindi 15%, then Telugu / Kannada / Bengali / Tamil / Bhojpuri … |
-| **Literacy** | Rural & tribal pilgrims ~68–71% |
-| **Tech** | Assume **feature phones**, not smartphones |
-| **Network** | Will **collapse** on peak days |
-| **Geography** | Two venues, ~30 km apart (Ramkund & Kushavarta Kund) |
-| **Highest risk** | Children < 12, elders 65+, solo travellers |
-
-A family that loses their 70-year-old mother — who speaks only Marathi, carries no phone, and was last seen near Ramkund — needs the system to find her **even if she's registered as "found" at a booth 30 km away by an operator who wrote the description in a different language.**
-
----
-
-## 💡 Why We Built This
-
-Existing "lost & found" desks fail at scale because they rely on **exact, human, single-center matching**. NANDI replaces that with three ideas:
-
-1. **Meaning over keywords.** "भगवा कुर्ता घातलेले वृद्ध गृहस्थ" and "old man in an orange tunic" describe the same person. A multilingual **semantic embedding** makes them match — across languages, across phrasings, across centers.
-2. **Plausibility, not just similarity.** Two elderly men in white kurtas look alike on paper. A **graph of venues, zones, time, and origin** scores *which* match is physically plausible and tells the operator *why*.
-3. **Humans decide, software assists.** The system **never** auto-notifies. It surfaces the top 3 candidates with a confidence score and plain-language reasons; a booth operator confirms. This is a **safety contract**, not a UX nicety.
-
-And it **degrades gracefully** — if the AI is down, the operator still has a searchable, audited list; if the network is down, the booth still works.
+- **Whole UI translates** into every Sarvam-supported language (English, Hindi,
+  Marathi, Bengali, Telugu, Tamil, Kannada, Gujarati, Malayalam, Punjabi, Odia) -
+  real translations generated via Sarvam, one click in the header.
+- **Kumbh-scale broadcast.** Individual opt-in lists can't reach crores. Each zone
+  has a public **Telegram channel** pilgrims join by scanning a QR at the booths;
+  a broadcast posts once per zone channel and reaches every member instantly.
+  Email is kept for registered families/officials.
+- **Vulnerable-person priority.** Open cases for children (≤12) and elders (≥70)
+  are auto-flagged, pinned to the top of the operator queue, and can be broadcast
+  immediately instead of waiting for the normal escalation window - learnt from
+  past-Kumbh lapses in responding to the most at-risk.
+- **Graceful degradation.** Every AI/notification dependency falls back safely if
+  its key is missing, so a report is never dropped.
 
 ---
 
-## ✨ What NANDI Does
-
-```
-Family reports a missing person  ──▶  embedded into a 1024-dim multilingual vector
-(voice / web / Telegram / WhatsApp)        + optional photo → 512-dim face vector
-                                                       │
-A "found" person is registered  ──▶  same pipeline  ──▶  pgvector finds the top-10
-at any booth                                              semantically similar reports
-                                                       │
-                                          Neo4j validates plausibility (zone, time,
-                                          origin, language, duplicates)
-                                                       │
-                                          Composite confidence + reason labels
-                                                       │
-                                          Operator sees top 3 → CONFIRMS one
-                                                       │
-                                          Family gets an SMS with booth + OTP
-                                          (only on human confirmation)
-```
-
-Unresolved cases **escalate automatically**: T+24h → zone-wide blast, T+72h → event-wide blast, T+120h → flagged for police. A **read-only dashboard** gives officials live visibility into volumes, outcomes, languages, hotspots, and the operational failures the system is closing.
-
----
-
-## 📸 The System in Action
-
-### Voice-first, multilingual intake
-*Speak or type in any language — Sarvam transcribes, Claude structures the fields, and an optional photo joins the matching pipeline. No field is required.*
-
-![Report a missing person](docs/screenshots/intake.png)
-
-### Operator console — live feed + AI-ranked matches
-*Reports stream in over WebSocket. Register a found person and NANDI surfaces the top semantically-similar candidates with confidence bands and plain-language reasons. The operator is the only gate to a notification.*
-
-![Operator console](docs/screenshots/operator.png)
-
-### Zone blast & escalation
-*When a case stays open, reach everyone opted into a zone (and adjacent zones) across SMS / WhatsApp / Telegram / email at once — the same engine the 24h / 72h auto-escalation runs on.*
-
-![Zone blast](docs/screenshots/blast.png)
-
----
-
-## 🏛 Architecture
+## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Intake["📥 INTAKE — any language, any channel"]
-        WEB["Web / Booth PWA<br/>(React)"]
-        VOICE["🎤 Voice note"]
-        TG["Telegram bot"]
-        WA["WhatsApp bot"]
-    end
-
-    subgraph AI["🧠 AI ENRICHMENT"]
-        STT["Sarvam STT<br/>(speech → text + lang detect)"]
-        EXTRACT["Claude tool-call<br/>(free text → structured fields)"]
-        TEXTEMB["e5-large<br/>text → vector(1024)"]
-        FACEEMB["InsightFace<br/>photo → vector(512)"]
-    end
-
-    subgraph API["⚙️ FastAPI GATEWAY  (/api/v1)"]
-        INTAKE_R["intake routes"]
-        MATCH_R["match routes"]
-        BLAST_R["blast routes"]
-        DASH_R["dashboard routes"]
-        MEDIA_R["media routes"]
-        WS["WebSocket /ws/feed"]
-    end
-
-    subgraph DATA["🗄 DATA LAYER"]
-        PG[("PostgreSQL 16<br/>+ pgvector + PostGIS<br/><i>source of truth + ANN search</i>")]
-        NEO[("Neo4j 5<br/><i>plausibility graph +<br/>learned landmark patterns</i>")]
-        REDIS[("Redis 7<br/><i>OTP store</i>")]
-        FILES[["Local / S3<br/>person photos"]]
-    end
-
-    subgraph NOTIFY["📤 NOTIFY & ESCALATE"]
-        SMS["SMS (MSG91 / Twilio)"]
-        TGN["Telegram"]
-        EMAIL["Email (Resend)"]
-        ESC["Escalation scheduler<br/>T+24h / T+72h / T+120h"]
-    end
-
-    subgraph UI["📊 COMMAND"]
-        DASH["React Dashboard<br/>Overview · Operator · Blast"]
-    end
-
-    WEB & TG & WA --> API
-    VOICE --> STT --> EXTRACT
-    TG & WA --> EXTRACT
-    EXTRACT --> INTAKE_R
-    INTAKE_R --> TEXTEMB & FACEEMB --> PG
-    INTAKE_R --> NEO
-    MATCH_R --> PG
-    MATCH_R --> NEO
-    MATCH_R --> REDIS
-    MEDIA_R --> FILES
-    BLAST_R --> SMS & TGN & EMAIL
-    ESC --> BLAST_R
-    DASH_R --> PG & NEO
-    WS --> DASH
-    DASH_R --> DASH
-    MATCH_R -.confirm only.-> SMS
+flowchart TD
+    Family([Family]) -->|voice / text / photo| Intake[Intake UI]
+    Operator([Booth operator]) --> Console[Operator console]
+    Intake --> API[FastAPI backend]
+    Console --> API
+    API -->|STT / extraction / vision| AI[[Sarvam + OpenAI]]
+    API --> PG[(Postgres + pgvector<br/>source of truth)]
+    API -->|geo validation| Neo[(Neo4j<br/>venue graph)]
+    API -->|OTP| Redis[(Redis)]
+    Console -->|confirm match| Notify[[Telegram + Email]]
+    API -->|zone broadcast| TG[Zone Telegram channels]
 ```
 
-**Clean separation of concerns, one job per store:**
-
-| Layer | Tool | Why this and not something else |
-|---|---|---|
-| Source of truth + vector search | **PostgreSQL + pgvector** | One DB for OLTP *and* embeddings; HNSW ANN is fast enough at this scale; avoids running a separate vector DB |
-| Plausibility & relationships | **Neo4j** | Multi-hop traversal (zone → landmark → learned pattern) is native; the same as SQL recursive CTEs but readable and fast |
-| OTP + ephemeral cache | **Redis** | Lightweight, TTL-native, battle-tested |
-| Photo storage | **Local FS / S3** | Presigned-URL contract; swappable to S3 with one file |
+- **Postgres + pgvector + PostGIS** - source of truth; multilingual text
+  embeddings for ANN search.
+- **Neo4j** - venue geography (zones, booths, landmarks, adjacency) for match
+  validation and broadcast fan-out.
+- **Redis** - verification-code (OTP) store.
 
 ---
 
-## 🔬 The Matching Pipeline (the core)
+## Quick start (local dev)
 
-```mermaid
-sequenceDiagram
-    participant O as Booth Operator
-    participant API as FastAPI
-    participant PG as pgvector
-    participant FACE as InsightFace
-    participant NEO as Neo4j
-    participant S as Scoring
+Prerequisites: **Docker Desktop**, **Python 3.11+**, **Node 18+**.
 
-    O->>API: Register found person (+ optional photo)
-    API->>PG: embed → store, ANN search<br/>(pre-filter: status=active, gender, age±15)
-    PG-->>API: top-10 candidates by cosine
-    API->>FACE: re-rank (only if both have a face)
-    API->>NEO: validate top-3 (zone, time, origin, duplicate)
-    NEO-->>S: graph signals
-    S-->>API: confidence = clamp(vector + Σ modifiers, 0, 1)<br/>+ reason labels
-    API-->>O: top 3 · 🟢/🟡/⚪ band · "Same zone ✓", "⚠ Different venue"…
-    O->>API: CONFIRM one  (human gate — the only path to an SMS)
-    API->>NEO: write MATCHED_TO edge (learns patterns)
-    API-->>O: reunion booth + OTP dispatched
+```bash
+# 1. Datastores (Postgres + Neo4j + Redis)
+cd server
+docker compose up -d          # wait until all three are healthy
+
+# 2. Backend
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env          # add keys (all optional - see below)
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python -m uvicorn api.main:app --reload    # → http://127.0.0.1:8000/docs
+
+# 3. Frontend (new terminal)
+cd frontend
+npm install
+npm run dev                   # → http://localhost:5173
 ```
 
-**Composite confidence** starts from the raw text cosine and is nudged by graph signals:
+> **Note:** if the project path contains spaces, the venv console scripts
+> (`alembic`, `uvicorn`) can't be executed directly - run them as
+> `python -m alembic …` / `python -m uvicorn …` as shown above.
 
-| Signal | Δ | Label shown to operator |
+The database starts **empty** (no fake data). To load the Nashik zone/booth
+topology the app needs:
+
+```bash
+cd server && .venv/bin/python -m scripts.seed_postgres && .venv/bin/python -m scripts.seed_neo4j
+```
+
+---
+
+## Production deploy
+
+One command brings up the full stack (nginx SPA + backend + datastores):
+
+```bash
+cp server/.env.example server/.env       # real secrets
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Migrations run automatically on backend start and the database starts clean.
+Put a TLS-terminating reverse proxy (Caddy / Traefik / cloud LB) in front for HTTPS.
+
+---
+
+## API keys
+
+All optional - each dependency degrades to a safe fallback when its key is blank.
+Keys live in `server/.env`.
+
+| Capability | Env var | Fallback when unset |
 |---|---|---|
-| same zone | +0.08 | Same zone ✓ |
-| adjacent zone | +0.04 | Adjacent zone ✓ |
-| different venue | −0.12 | ⚠ Different venue |
-| same city of origin | +0.06 | Same city of origin ✓ |
-| time gap < 2h | +0.07 | Time gap under 2 hours ✓ |
-| report > 72h old | −0.08 | ⚠ Report over 3 days old |
-| landmark pattern match | +0.07 | Landmark pattern match ✓ |
-| language match | +0.04 | Language spoken matches ✓ |
-| possible duplicate | −0.05 | ⚠ Possible duplicate report |
+| Voice → text + UI translation | `SARVAM_API_KEY` | mock transcript; UI stays English |
+| Intake extraction + photo description | `OPENAI_API_KEY` (primary), `ANTHROPIC_API_KEY` (fallback) | regex heuristic |
+| Zone broadcast + match notifications | `TELEGRAM_BOT_TOKEN` | on-screen code only |
+| Email to registered families | `RESEND_API_KEY` / SMTP | logged no-op |
+| Real embeddings (vs deterministic stub) | `EMBEDDING_FALLBACK=0` | hash-seeded stub |
 
-**Confidence bands:** ≥ 0.90 🟢 High · 0.75–0.89 🟡 Probable · 0.60–0.74 ⚪ Possible · **< 0.60 never surfaced**. Human confirmation is required at *every* band — there is no auto-confirm, ever.
+Check what's live: `curl -s http://127.0.0.1:8000/api/v1/channels`
 
 ---
 
-## 🛠 Tech Stack
+## UI translations
 
-### Backend
-| Component | Choice |
-|---|---|
-| API framework | **FastAPI** (Python 3.11, async, native WebSockets) |
-| ORM / migrations | SQLAlchemy 2.0 (async) + Alembic |
-| Text embedding | `intfloat/multilingual-e5-large` — **1024-dim**, multilingual, asymmetric query/passage prefixes |
-| Face embedding | **InsightFace** `buffalo_l` (ArcFace) — 512-dim, used for photo re-rank |
-| Speech-to-text | **Sarvam** STT (Indian-language auto-detect) |
-| Field extraction | **Claude** (`claude-opus-4-8`) tool-calling → structured report fields, any language |
-| Notifications | MSG91 / Twilio (SMS · WhatsApp), Resend (email), Telegram Bot API |
+The interface ships translated into every Sarvam language
+(`frontend/src/lib/locales/*.json`). English is the source of truth in
+`frontend/src/lib/i18n.tsx`. After editing English copy, regenerate:
 
-### Databases
-**PostgreSQL 16** + pgvector (HNSW, `vector_cosine_ops`, partial index on `status='active'`) + PostGIS · **Neo4j 5** · **Redis 7** — all via Docker Compose.
-
-### Frontend
-**React 18 + Vite 6 + TypeScript** · **Tailwind CSS v4** · **Recharts** · **react-router** · live updates over native **WebSocket** · in-app **i18n** (English / मराठी / हिंदी).
-
-### Why these models
-- **e5-large** handles Marathi ↔ Hindi ↔ English ↔ Telugu *natively* — no translation step, no language validation, one vector space. "saffron kurta + walking stick + rudraksha mala" matches "orange tunic + wooden cane + prayer beads" at **0.90 cosine** with zero shared words. ([Locked at 1024-dim](NANDI-context.md) — changing it means re-indexing everything.)
-- **Claude tool-calling** turns a panicked, code-mixed voice note into clean columns and lists *what's still missing to ask next* — degrading to a heuristic if no key is present, so intake never breaks.
+```bash
+cd server && python -m scripts.gen_i18n          # fills only missing keys
+python -m scripts.gen_i18n --force               # retranslate everything
+```
 
 ---
 
-## 🌟 Key Features
-
-- 🗣 **Voice-first, multilingual intake** — speak in any language; Sarvam transcribes, Claude structures, the form auto-fills.
-- 🖼 **Photo + face matching** — attach a photo at intake; a 512-dim face vector joins the matching pipeline and re-ranks candidates.
-- 🔍 **True semantic search** — cross-language, cross-phrasing similarity via pgvector ANN (not keyword match).
-- 🧩 **Explainable confidence** — every candidate shows *why* (zone, time, origin, language, duplicate), not just a number.
-- 🛡 **Human-in-the-loop safety gate** — SMS only on explicit operator confirmation.
-- 📣 **Zone blasts + auto-escalation** — reach everyone opted into a zone (and adjacent zones) across SMS / WhatsApp / Telegram / email; 24h / 72h / 120h ladder.
-- 📊 **Live read-only dashboard** — volumes, outcomes, languages, hotspots, and *operational* metrics (cross-center matches, duplicates caught, cases without name/phone, high-risk unresolved).
-- 🔌 **Multi-channel** — web booth, Telegram bot, WhatsApp bot, all funnelling into one intake pipeline.
-- ♻️ **Graceful degradation** — missing API keys → mocks; Neo4j down → signals default false; model absent → deterministic stub. Nothing hard-fails.
-
----
-
-## 📁 Repository Layout
+## Project structure
 
 ```
 Nandi/
-├── server/                      # FastAPI backend
-│   ├── api/routes/              # auto-mounted routers (drop a file → it mounts)
-│   │   ├── intake.py            #   POST /intake/{missing,found,extract}
-│   │   ├── match.py             #   GET /match/{id} · POST /match/{confirm,reject}
-│   │   ├── media.py             #   photo upload/serve · voice transcribe
-│   │   ├── blast.py             #   zone blasts · subscribers · zones
-│   │   ├── dashboard.py         #   stats · feed · patterns · booths
-│   │   ├── webhooks.py          #   Telegram / WhatsApp bots
-│   │   └── ws.py                #   WebSocket live feed
-│   ├── services/                # the brains
-│   │   ├── embedding.py         #   text (e5) + face (InsightFace) + cosine
-│   │   ├── matcher.py           #   the full ranking pipeline
-│   │   ├── scoring.py           #   composite confidence + reason labels
-│   │   ├── neo4j_client.py      #   graph sync, validation, landmark patterns
-│   │   ├── intake_pipeline.py   #   one funnel every channel shares
-│   │   ├── extraction.py        #   Claude → structured fields
-│   │   ├── media_store.py       #   local photo storage (S3-shaped)
-│   │   └── …                    #   dedup, otp, sms, blast, case_events, sarvam
-│   ├── db/models.py             # SQLAlchemy schema (UUID PKs, vector columns)
-│   ├── scripts/                 # seed_synthetic · reembed · seed_neo4j · refresh_views
-│   ├── graph/                   # Cypher schema + Nashik seed
-│   └── docker-compose.yml       # Postgres + Neo4j + Redis
-├── frontend/                    # React + Vite dashboard / booth app
-│   └── src/pages/               # Overview · Intake · Operator · Blast
-├── dataset/                     # 2,500 synthetic missing-persons + zone/CCTV/police CSVs
-└── NANDI-context.md             # the canonical condensed project brief
+├── frontend/                     # React + Vite + Tailwind (operational UI)
+│   └── src/
+│       ├── pages/                # Overview · Intake · Operator · Blast
+│       ├── lib/                  # api client, i18n + locales/, hooks
+│       └── components/           # shared UI primitives + icons
+├── server/                       # FastAPI backend
+│   ├── api/routes/               # blast, dashboard, intake, match, media, webhooks, ws
+│   ├── core/                     # config, database, redis, security, logging
+│   ├── db/                       # SQLAlchemy models
+│   ├── services/                 # matcher, embedding, extraction, vision, blast, notify …
+│   ├── migrations/               # Alembic
+│   ├── scripts/                  # seed_* , gen_i18n (Sarvam translations), blast_worker
+│   ├── Dockerfile                # production backend image
+│   └── docker-compose.yml        # dev datastores
+└── docker-compose.prod.yml       # full production stack
 ```
 
 ---
 
-## 🚀 Getting Started
+## Tech stack
 
-> 📋 A step-by-step, clone-from-scratch walkthrough (with prerequisite checks and troubleshooting) lives in **[docs/SETUP.md](docs/SETUP.md)**. The quick version is below.
-
-### Prerequisites
-- Docker (Postgres + Neo4j + Redis), Python 3.11, Node 18+, and [`uv`](https://github.com/astral-sh/uv).
-
-### 1 · Databases
-```bash
-cd server
-docker compose up -d            # Postgres :5433 · Neo4j :7687 · Redis :6379
-```
-
-### 2 · Backend
-```bash
-cd server
-cp .env.example .env            # fill keys; everything degrades to mocks if blank
-uv venv ../.venv && source ../.venv/bin/activate
-uv pip install -r requirements.txt
-
-alembic upgrade head            # schema + HNSW index + materialized view
-python -m scripts.seed_postgres # zones, booths
-python -m scripts.seed_neo4j    # graph nodes/edges
-python -m scripts.seed_synthetic --truncate   # 2,500 demo reports
-
-# Real semantic search: .env has EMBEDDING_FALLBACK=0 → the e5 + InsightFace
-# models load on first use. Re-embed the seed corpus with real vectors ONCE:
-python -m scripts.reembed
-
-uvicorn api.main:app --host 127.0.0.1 --port 8137
-```
-> ℹ️ **Port 8137** — port 8000 is taken by an unrelated service on the dev box; the frontend proxy already points here (`frontend/vite.config.ts`).
-
-### 3 · Frontend
-```bash
-cd frontend
-npm install
-npm run dev                     # http://localhost:5173  (proxies /api → :8137)
-```
-
-### Degradation knobs
-| Env | Effect |
-|---|---|
-| `EMBEDDING_FALLBACK=1` | deterministic stub embedder — no model download, exact-text matching only |
-| no `ANTHROPIC_API_KEY` | extraction falls back to a regex heuristic |
-| no `SARVAM_API_KEY` | transcription returns a mock transcript |
-| no SMS/WhatsApp/email keys | sends become audited no-ops (logged, never leave the box) |
-| Neo4j down | all graph signals default to `false`, matching still runs on text similarity |
-
----
-
-## 🔌 API Reference
-
-All routes under `/api/v1`, all responses wrapped: `{ "data": …, "error": null, "timestamp": "…Z" }`.
-
-| Method | Route | Purpose |
-|---|---|---|
-| `POST` | `/intake/missing` | File a missing (or found) report from the web form |
-| `POST` | `/intake/found` | Register a found person → returns `found_id` |
-| `POST` | `/intake/extract` | Preview structured fields from free text (no save) |
-| `POST` | `/media/upload` | Upload a person photo → `photo_url` |
-| `GET`  | `/media/file/{name}` | Serve a stored photo |
-| `POST` | `/media/transcribe` | Voice note → transcript + detected language |
-| `GET`  | `/match/{found_id}` | Top-3 ranked candidates with confidence + reasons |
-| `POST` | `/match/confirm` | **Human gate** — confirm one, fire the SMS *(requires `X-Booth-ID`)* |
-| `POST` | `/match/reject` | Operator rejected all candidates |
-| `POST` | `/internal/validate` | Graph signals for a pair *(server-to-server, `X-Internal-Key`)* |
-| `GET`  | `/stats` · `/feed` · `/patterns` · `/booths` | Dashboard data sources |
-| `GET`  | `/zones` · `/channels` · `/subscribers` | Blast targeting |
-| `POST` | `/blast/zone` · `/blast/found/{id}` | Send a location blast |
-| `WS`   | `/ws/feed` | Live report stream to the dashboard |
-
----
-
-## 🧭 Design Decisions (why this way)
-
-- **UUIDs everywhere, no auto-increment.** Booths generate IDs offline; UUIDs mean offline-created records never collide on sync.
-- **Embedding dimension locked at 1024.** It ripples into the schema, the HNSW index, and every embedding call — changing it is a coordinated migration, not a config flip.
-- **No language validation, anywhere.** The model is multilingual by design; the only language-specific logic is the SMS template (Marathi first, Hindi fallback).
-- **Vector pre-filter is always partial on `status='active'`.** Never a full-table scan; gender/age narrow the ANN search before the cosine comparison.
-- **Directory-driven router mounting.** Drop any `api/routes/*.py` exposing a `router` and it auto-mounts — zero merge conflicts in `main.py` for a 4-person team working in parallel.
-- **One intake funnel.** Web, Telegram, and WhatsApp all converge on `intake_pipeline` → identical embedding, graph sync, dedup, audit, and live broadcast regardless of channel.
-
----
-
-## 🛡 Safety Contracts (non-negotiable)
-
-1. **No auto-notification.** An SMS is sent *only* after explicit operator confirmation.
-2. **No plaintext phone numbers in logs.** Always masked → `+91XXXXXX7890`.
-3. **Offline booths queue, never drop.** No server reach → write locally, never discard.
-4. **Marathi first.** Every user-facing string has a Marathi version; English is internal/admin.
-5. **Photos are optional everywhere.** A missing photo never blocks a submission.
-6. **Every state change is audited** in `case_events` — filed, matched, rejected, blasted, escalated.
-
----
-
-## 🗺 Roadmap / Out of Scope
-
-**Built & verified:** multilingual semantic search · photo + face ingestion · explainable matching · human-confirm gate · zone blasts · live dashboard · Telegram/WhatsApp intake.
-
-**Next up:** landmark-pattern Sankey panel (data ready via `/patterns`) · MapLibre live map · OTP verify-at-handoff screen · JWT + role-based access.
-
-**Explicitly out of scope (hackathon):** live CCTV facial recognition · Aadhaar/ID verification · police FIR integration · native mobile apps (PWA suffices) · a separate analytics DB.
-
----
-
-<div align="center">
-
-**नंदी** · *the one who waits at the gate until everyone has come home.*
-
-Built for the Simhastha Kumbh Mela 2027 · Nashik · Trimbakeshwar
-
-</div>
+**Frontend** React 18 · Vite · TypeScript · Tailwind · Recharts -
+**Backend** FastAPI · SQLAlchemy (async) · Alembic -
+**Data** Postgres + pgvector + PostGIS · Neo4j · Redis -
+**AI** Sarvam (STT + translation) · OpenAI (extraction + vision) ·
+sentence-transformers (multilingual-e5-large embeddings).

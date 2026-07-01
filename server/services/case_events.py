@@ -1,5 +1,5 @@
 """
-services.case_events — the single writer for the audit trail (Member 1).
+services.case_events - the single writer for the audit trail (Member 1).
 
 Every state change in a case must leave a row in `case_events` (SoW §5.1). Route
 this through `log_event` so the audit vocabulary and phone-masking stay
@@ -39,7 +39,7 @@ async def log_event(
         event_type: an EventType (or its string value).
         booth_id / operator_id: who/where, for attribution.
         metadata: arbitrary JSON context. Any key that looks like a phone number
-            is masked here as a safety net (SoW §12.8 #2 — no plaintext phones).
+            is masked here as a safety net (SoW §12.8 #2 - no plaintext phones).
         flush: flush to assign the id without committing (the request-level
             session commits at the end). Set False inside a larger unit of work.
 

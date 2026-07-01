@@ -1,4 +1,4 @@
-// sync_missing_report — idempotently upsert a MissingReport and its satellites.
+// sync_missing_report - idempotently upsert a MissingReport and its satellites.
 //
 // Called by M2's intake (after the SQL row exists) and defensively by the
 // matcher. Every clause is MERGE, so offline-sync replays never duplicate.
@@ -23,7 +23,7 @@ MERGE (p:Person {ref: 'missing:' + $id})
       p.language_spoken = $language
 MERGE (m)-[:DESCRIBES]->(p)
 
-// City of origin — only when known.
+// City of origin - only when known.
 FOREACH (_ IN CASE WHEN $origin_city IS NULL THEN [] ELSE [1] END |
   MERGE (c:City {name: $origin_city})
   MERGE (p)-[:FROM_CITY]->(c)
@@ -45,7 +45,7 @@ FOREACH (_ IN CASE WHEN $booth_id IS NULL THEN [] ELSE [1] END |
   MERGE (m)-[:FILED_AT]->(b)
 )
 
-// Filer's phone — enables the origin-city check via group membership.
+// Filer's phone - enables the origin-city check via group membership.
 FOREACH (_ IN CASE WHEN $filer_phone IS NULL THEN [] ELSE [1] END |
   MERGE (:Phone {number: $filer_phone})
 )

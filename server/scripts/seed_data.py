@@ -1,11 +1,11 @@
 """
-scripts.seed_data — canonical Nashik / Trimbakeshwar topology (single source).
+scripts.seed_data - canonical Nashik / Trimbakeshwar topology (single source).
 
 CRITICAL: zone and booth UUIDs must be IDENTICAL in PostgreSQL and Neo4j, because
 the graph zone-plausibility check compares a zone id coming from the seeded graph
 (found booth's zone) against a zone id coming from Postgres (missing report's
 last_seen_zone_id). We guarantee this by deriving every id deterministically with
-uuid5 from a fixed namespace + a stable slug — so seed_postgres.py and
+uuid5 from a fixed namespace + a stable slug - so seed_postgres.py and
 seed_neo4j.py independently compute the same ids, no hardcoded UUIDs to drift.
 
 Edit the data here and BOTH seeders (and the generated graph/seed_nashik.cypher)
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 
-# Fixed namespace for all NANDI seed ids. Never change this — it would re-key
+# Fixed namespace for all NANDI seed ids. Never change this - it would re-key
 # every seeded zone/booth and break id alignment with already-seeded data.
 NAMESPACE = uuid.UUID("4e616e64-6900-5345-4544-000000000001")  # "Nandi SEED" mnemonic
 
@@ -68,7 +68,7 @@ BOOTHS: list[dict] = [
 ]
 
 # ── Zone adjacency (bidirectional) ───────────────────────────────────────────
-# Within-venue neighbours only — Nashik and Trimbakeshwar are ~30km apart.
+# Within-venue neighbours only - Nashik and Trimbakeshwar are ~30km apart.
 ADJACENCY: list[tuple[str, str]] = [
     ("ramkund", "panchavati"),
     ("panchavati", "tapovan"),

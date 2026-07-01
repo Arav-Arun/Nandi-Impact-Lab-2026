@@ -1,10 +1,10 @@
 """
-services.hub — tiny in-process WebSocket fan-out for the live dashboard feed (M2/M3).
+services.hub - tiny in-process WebSocket fan-out for the live dashboard feed (M2/M3).
 
 Intake handlers call `hub.broadcast(...)` whenever a report is filed; the
 dashboard's `WS /api/v1/ws/feed` subscribers receive it. Best-effort: a dead
 socket is dropped silently, never raising into the intake path. For multi-worker
-deploys this is replaced by a Redis pub/sub fan-out (M4) — same broadcast call.
+deploys this is replaced by a Redis pub/sub fan-out (M4) - same broadcast call.
 """
 
 from __future__ import annotations

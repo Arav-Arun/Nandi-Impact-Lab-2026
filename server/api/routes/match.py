@@ -1,5 +1,5 @@
 """
-api.routes.match — Member 1's matching endpoints.
+api.routes.match - Member 1's matching endpoints.
 
 Routes (SoW §12.2):
     GET  /api/v1/match/{found_id}      → top candidates for the operator
@@ -8,7 +8,7 @@ Routes (SoW §12.2):
     POST /api/v1/internal/validate     → graph signals for a (missing, found) pair
 
 The confirm endpoint is the ONLY path that triggers a notification, and only on
-explicit human action (SoW §12.8 #1 — no auto-notification, ever).
+explicit human action (SoW §12.8 #1 - no auto-notification, ever).
 """
 
 from __future__ import annotations
@@ -29,10 +29,12 @@ from schemas.match import (
     MatchListResponse,
     RejectRequest,
     RejectResponse,
+    ReuniteRequest,
+    ReuniteResponse,
     ValidateRequest,
     ValidateResponse,
 )
-from services import matcher, notify_bridge
+from services import matcher, notify_bridge, otp
 from services.case_events import log_event
 from services.neo4j_client import neo4j_client
 
@@ -45,7 +47,7 @@ internal_router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GET /match/{found_id} — ranked candidates
+# GET /match/{found_id} - ranked candidates
 # ─────────────────────────────────────────────────────────────────────────────
 @router.get("/{found_id}")
 async def get_matches(found_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
@@ -67,7 +69,7 @@ async def get_matches(found_id: uuid.UUID, session: AsyncSession = Depends(get_s
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# POST /match/confirm — the human confirmation gate
+# POST /match/confirm - the human confirmation gate
 # ─────────────────────────────────────────────────────────────────────────────
 @router.post("/confirm")
 async def confirm_match(
@@ -82,7 +84,11 @@ async def confirm_match(
       1. missing → matched (+ matched_found_id); found → matched (+ matched_report_id)
       2. write the MATCHED_TO edge in Neo4j (learns landmark patterns over time)
       3. audit `matched` event
-      4. generate OTP + dispatch the Marathi match SMS to the filer (via M2)
+      4. generate an OTP and notify the family where to collect their relative
+
+    Confirming a match is NOT the reunion - it flips both reports to `matched`.
+    The loop is only closed when the family presents the OTP at the booth via
+    POST /match/reunite (status → reunited).
     """
     missing = await session.get(MissingReport, body.missing_id)
     found = await session.get(FoundReport, body.found_id)
@@ -117,23 +123,24 @@ async def confirm_match(
         metadata={"found_id": str(found.id)},
     )
 
-    # 4) resolve the destination booth/zone for the SMS, then notify via M2.
+    # 4) resolve the destination booth/zone, generate an OTP, notify the family.
     booth_name, zone_name = await _resolve_destination(session, found)
     case_id = str(missing.id)  # the family's case id; OTP is keyed on this
     otp = await notify_bridge.generate_otp(case_id)
-    dispatched = await notify_bridge.send_match_sms(
-        phone=missing.filed_by_phone,
+    notified, channel = await notify_bridge.notify_family_of_match(
+        filed_by_phone=missing.filed_by_phone,
         booth_name=booth_name or "NANDI Booth",
         zone_name=zone_name or "",
         otp=otp,
     )
 
     log.info(
-        "match confirmed missing=%s found=%s filer=%s otp_dispatched=%s",
+        "match confirmed missing=%s found=%s filer=%s notified=%s channel=%s",
         missing.id,
         found.id,
         mask_phone(missing.filed_by_phone),
-        dispatched,
+        notified,
+        channel,
     )
 
     return ok(
@@ -141,16 +148,64 @@ async def confirm_match(
             found_id=found.id,
             missing_id=missing.id,
             matched=True,
-            otp_dispatched=dispatched,
+            otp=otp,
+            notified=notified,
+            notify_channel=channel,
             booth_name=booth_name,
             zone_name=zone_name,
-            notify_detail=None if dispatched else "SMS not dispatched (notifier unavailable)",
         )
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# POST /match/reject — operator rejected every surfaced candidate
+# POST /match/reunite - the family collects their relative (closes the loop)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/reunite")
+async def reunite(
+    body: ReuniteRequest,
+    session: AsyncSession = Depends(get_session),
+    booth_id: uuid.UUID = Depends(get_booth_id),
+):
+    """
+    Verify the OTP and mark the pair reunited.
+
+    The family arrives at the booth and presents the code they received on the
+    confirmed match. On a correct code both reports flip `matched → reunited` and
+    a `reunited` audit event is written. A wrong/expired code changes nothing.
+    """
+    missing = await session.get(MissingReport, body.missing_id)
+    found = await session.get(FoundReport, body.found_id)
+    if missing is None:
+        raise ApiError("MISSING_NOT_FOUND", "missing report not found", 404)
+    if found is None:
+        raise ApiError("FOUND_NOT_FOUND", "found report not found", 404)
+
+    # Must be a confirmed pair before it can be reunited.
+    if missing.matched_found_id != found.id or found.matched_report_id != missing.id:
+        raise ApiError("NOT_MATCHED", "this pair has not been confirmed as a match", 409)
+
+    if not await otp.verify(str(missing.id), body.otp):
+        return ok(ReuniteResponse(
+            found_id=found.id, missing_id=missing.id,
+            reunited=False, detail="Incorrect or expired verification code.",
+        ))
+
+    missing.status = "reunited"
+    found.status = "reunited"
+    await log_event(
+        session,
+        report_id=missing.id,
+        event_type=EventType.reunited,
+        booth_id=booth_id,
+        operator_id=body.operator_id,
+        metadata={"found_id": str(found.id)},
+    )
+    log.info("reunited missing=%s found=%s", missing.id, found.id)
+    return ok(ReuniteResponse(found_id=found.id, missing_id=missing.id, reunited=True))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /match/reject - operator rejected every surfaced candidate
 # ─────────────────────────────────────────────────────────────────────────────
 @router.post("/reject")
 async def reject_matches(
@@ -185,7 +240,7 @@ async def reject_matches(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# POST /internal/validate — graph signals (server-to-server only)
+# POST /internal/validate - graph signals (server-to-server only)
 # ─────────────────────────────────────────────────────────────────────────────
 @internal_router.post("/validate", dependencies=[Depends(require_internal_key)])
 async def validate_pair(body: ValidateRequest, session: AsyncSession = Depends(get_session)):
@@ -193,7 +248,7 @@ async def validate_pair(body: ValidateRequest, session: AsyncSession = Depends(g
     Run the Neo4j validation checks for one (missing, found) pair.
 
     Returns the `graph_signals` dict consumed by the composite score. Guarded by
-    X-Internal-Key — this is an internal step of the match pipeline, not a
+    X-Internal-Key - this is an internal step of the match pipeline, not a
     user-facing route.
     """
     signals = await matcher.graph_signals_for(

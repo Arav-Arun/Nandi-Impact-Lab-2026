@@ -1,5 +1,5 @@
 """
-api.routes.intake — Member 2's intake endpoints (web form + structured filing).
+api.routes.intake - Member 2's intake endpoints (web form + structured filing).
 
 Auto-mounted by api.main under /api/v1. Reuses M1 surfaces via
 services.intake_pipeline (embedding, graph sync, dedup, audit, live broadcast).
@@ -63,7 +63,7 @@ class WebReportIn(BaseModel):
     district: Optional[str] = None
     raw_text: Optional[str] = None
     detected_language: Optional[str] = None
-    photo_url: Optional[str] = None          # from POST /media/upload (optional)
+    photo_url: Optional[str] = None
 
 
 class FoundIn(BaseModel):
@@ -75,12 +75,12 @@ class FoundIn(BaseModel):
     apparent_city_origin: Optional[str] = None
     current_zone_id: Optional[uuid.UUID] = None
     registered_at_booth: Optional[uuid.UUID] = None
-    photo_url: Optional[str] = None          # from POST /media/upload (optional)
+    photo_url: Optional[str] = None
 
 
 @router.post("/extract")
 async def intake_extract(body: ExtractIn):
-    """Preview the structured fields the form will file — never saves."""
+    """Preview the structured fields the form will file - never saves."""
     ex = await extraction.extract(body.text, detected_language=body.detected_language)
     return ok({
         "person_name": ex.subject_name,

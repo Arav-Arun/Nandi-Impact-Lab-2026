@@ -1,5 +1,5 @@
 """
-db.base — the declarative base for all SQLAlchemy models.
+db.base - the declarative base for all SQLAlchemy models.
 
 Alembic's `target_metadata` is `Base.metadata`. For autogenerate / metadata to
 see every table, all model modules must be imported before metadata is read;

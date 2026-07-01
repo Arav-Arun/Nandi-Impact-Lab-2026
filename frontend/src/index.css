@@ -1,47 +1,80 @@
 @import "tailwindcss";
 
-/* ── NANDI design system — duotone: ink + saffron on warm-gray neutrals ──────
-   One accent (saffron) carries every highlight, action, and chart series; ink
-   and warm grays do everything else. No second hue. White space, hairline
-   borders, near-black pill buttons. Restraint over decoration. */
+/* ── NANDI operational design system ──────────────────────────────────────────
+   A control-panel, not a landing page. High-contrast ink on cool neutrals,
+   flat surfaces, hairline borders, sharp corners, monospace for IDs/codes.
+   Saffron is the single brand accent for primary actions; status is carried by
+   distinct, scannable hues (active / matched / reunited / escalated). Built to
+   stay legible and fast on cheap Android phones in bright daylight. */
 @theme {
-  --font-sans: "Plus Jakarta Sans", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Newsreader", "Noto Serif Devanagari", Georgia, serif;
-  --font-deva: "Noto Sans Devanagari", "Plus Jakarta Sans", sans-serif;
-  --font-deva-serif: "Noto Serif Devanagari", "Newsreader", serif;
+  /* Inter for Latin; the Noto Indic families cover every Sarvam script via
+     per-glyph fallback, so any language renders without tofu boxes. */
+  --font-sans: "Inter", "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Telugu",
+    "Noto Sans Tamil", "Noto Sans Kannada", "Noto Sans Gujarati", "Noto Sans Malayalam",
+    "Noto Sans Gurmukhi", "Noto Sans Oriya", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Menlo", monospace;
+  --font-deva: var(--font-sans);
 
-  --color-bg: #ffffff;
-  --color-bg-soft: #faf8f4;        /* warm paper */
+  /* neutrals */
+  --color-bg: #eceef1;
+  --color-bg-soft: #f3f5f7;
   --color-surface: #ffffff;
-  --color-ink: #1f1a14;            /* warm near-black */
-  --color-ink-soft: #6c6358;       /* warm gray */
-  --color-line: #ece6db;           /* warm hairline */
-  --color-line-2: #e0d8c9;
+  --color-ink: #14161a;
+  --color-ink-soft: #5c656f;
+  --color-ink-faint: #949ba4;
+  --color-line: #dce0e5;
+  --color-line-2: #c4cad1;
 
-  /* the single accent */
-  --color-saffron: #e0852b;
+  /* brand accent */
+  --color-saffron: #d97a1f;
   --color-saffron-deep: #b4641a;
-  --color-saffron-soft: #f6dab4;
+  --color-saffron-soft: #fbe9d3;
 
-  /* legacy token names remapped onto the duotone so existing markup keeps
-     working without touching every className (all resolve to ink/saffron). */
-  --color-indigo: #e0852b;
-  --color-iris: #c0762e;
-  --color-periwinkle: #cf9350;
-  --color-peri-soft: #f6dab4;
-  --color-peach: #e0852b;
-  --color-peach-soft: #f0b878;
-  --color-green: #1f1a14;          /* "resolved" reads as calm ink, not a 2nd hue */
-  --color-violet: #e0852b;
+  /* status */
+  --color-ok: #1f9d57;
+  --color-ok-soft: #dcf3e5;
+  --color-warn: #c9820f;
+  --color-warn-soft: #fbeccb;
+  --color-danger: #d5432f;
+  --color-danger-soft: #fbe0dc;
+  --color-info: #2f6fd0;
+  --color-info-soft: #e0eafa;
+
+  /* legacy aliases so pre-migration markup keeps resolving */
+  --color-indigo: #d97a1f;
+  --color-iris: #b4641a;
+  --color-periwinkle: #c9820f;
+  --color-peri-soft: #fbe9d3;
+  --color-peach: #d97a1f;
+  --color-peach-soft: #fbe9d3;
+  --color-green: #1f9d57;
+  --color-violet: #d97a1f;
   --color-paper: #ffffff;
-  --color-paper-2: #faf8f4;
+  --color-paper-2: #f3f5f7;
+  --color-success: #1f9d57;
+}
 
-  /* status: saffron = needs attention; ink/gray = settled. No extra hues. */
-  --color-ok: #7a6a52;
-  --color-warn: #e0852b;
-  --color-danger: #b4641a;
-
-  --radius-card: 1.25rem;
+/* Plain-var aliases used by the rebuilt components (shorter names). */
+:root {
+  --ink: #14161a;
+  --ink-soft: #5c656f;
+  --ink-faint: #949ba4;
+  --surface: #ffffff;
+  --surface-2: #f3f5f7;
+  --bg: #eceef1;
+  --line: #dce0e5;
+  --line-strong: #c4cad1;
+  --accent: #d97a1f;
+  --accent-ink: #b4641a;
+  --accent-soft: #fbe9d3;
+  --ok: #1f9d57;
+  --ok-soft: #dcf3e5;
+  --warn: #c9820f;
+  --warn-soft: #fbeccb;
+  --danger: #d5432f;
+  --danger-soft: #fbe0dc;
+  --info: #2f6fd0;
+  --info-soft: #e0eafa;
 }
 
 @layer base {
@@ -49,57 +82,86 @@
   body {
     margin: 0;
     font-family: var(--font-sans);
-    color: var(--color-ink);
-    background:
-      radial-gradient(900px 460px at 50% -8%, rgba(224, 133, 43, 0.10), transparent 60%),
-      var(--color-bg-soft);
-    background-attachment: fixed;
+    color: var(--ink);
+    background: var(--bg);
     min-height: 100vh;
+    font-size: 14px;
   }
-  :lang(mr), :lang(hi), .deva { font-family: var(--font-deva); }
+  :lang(mr), :lang(hi), :lang(bn), :lang(te), :lang(ta), :lang(kn), :lang(gu), :lang(ml), :lang(pa), :lang(od), .deva {
+    font-family: var(--font-deva);
+  }
   * { box-sizing: border-box; }
-  ::selection { background: var(--color-saffron-soft); }
-  :focus-visible { outline: 2px solid var(--color-saffron); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: var(--accent-soft); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+  button, select, a, label, [role="button"], [role="option"] { cursor: pointer; }
 }
 
-/* Display serif */
-.serif { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.01em; }
-.deva-serif { font-family: var(--font-deva-serif); }
+/* ── primitives ─────────────────────────────────────────────────────────── */
 
-/* The mark / primary actions — solid saffron (no multi-hue gradient) */
-.nandi-gradient { background-color: var(--color-saffron); }
-.nandi-gradient:hover { background-color: var(--color-saffron-deep); }
-.text-gradient { color: var(--color-saffron); }
+/* Panel: the flat, hairline surface the whole UI is built from. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.panel-flush { background: var(--surface); border: 1px solid var(--line); }
+
+/* Monospace for case IDs, codes, counts. */
+.mono { font-family: var(--font-mono); font-feature-settings: "tnum" 1; letter-spacing: -0.01em; }
 
 /* Buttons */
-.btn-dark {
-  background: var(--color-ink); color: #fff;
-  border-radius: 9999px; font-weight: 600;
-  transition: transform .15s ease, opacity .15s ease;
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  border-radius: 6px; font-weight: 600; font-size: 13px;
+  padding: 0.5rem 0.85rem; line-height: 1; border: 1px solid transparent;
+  transition: background .12s ease, border-color .12s ease, opacity .12s ease;
+  white-space: nowrap;
 }
-.btn-dark:hover { opacity: .92; }
-.btn-dark:active { transform: translateY(1px); }
-.btn-ghost {
-  background: #fff; color: var(--color-ink);
-  border: 1px solid var(--color-line-2); border-radius: 9999px; font-weight: 600;
-}
-.btn-ghost:hover { border-color: var(--color-saffron); }
+.btn:disabled { opacity: .5; pointer-events: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-ink); }
+.btn-ink { background: var(--ink); color: #fff; }
+.btn-ink:hover { background: #000; }
+.btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
+.btn-ghost:hover { border-color: var(--ink); }
+.btn-ok { background: var(--ok); color: #fff; }
+.btn-ok:hover { filter: brightness(.94); }
+.btn-danger { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger-soft); }
 
-/* Cards — flat, hairline, soft */
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-card);
-  box-shadow: 0 1px 1px rgba(31, 26, 20, 0.03), 0 14px 40px -28px rgba(31, 26, 20, 0.22);
+/* Inputs */
+.field {
+  width: 100%; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  padding: 0.55rem 0.7rem; font-size: 14px; outline: none;
 }
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field::placeholder { color: var(--ink-faint); }
 
-/* Animations — subtle, reduced-motion aware */
-@keyframes nandi-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
-.animate-rise { animation: nandi-rise .4s cubic-bezier(.2,.7,.3,1) both; }
-@keyframes nandi-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
-.animate-livepulse { animation: nandi-pulse 1.7s ease-in-out infinite; }
-@keyframes nandi-halo { 0% { box-shadow: 0 0 0 0 rgba(224,133,43,.35); } 100% { box-shadow: 0 0 0 22px rgba(224,133,43,0); } }
-.animate-halo { animation: nandi-halo 1.5s ease-out infinite; }
+/* Status pill - driven by data-status */
+.pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  border-radius: 4px; padding: 0.12rem 0.4rem;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.pill-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+
+/* Legacy class shims so un-migrated pages stay usable during the rebuild. */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.nandi-gradient { background-color: var(--accent); }
+.nandi-gradient:hover { background-color: var(--accent-ink); }
+.btn-dark { background: var(--ink); color: #fff; border-radius: 6px; font-weight: 600; }
+.btn-dark:hover { background: #000; }
+.serif { font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.02em; }
+
+/* Animations - subtle, reduced-motion aware */
+@keyframes nandi-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+.animate-livepulse { animation: nandi-pulse 1.6s ease-in-out infinite; }
+@keyframes nandi-halo { 0% { box-shadow: 0 0 0 0 rgba(217,122,31,.4); } 100% { box-shadow: 0 0 0 16px rgba(217,122,31,0); } }
+.animate-halo { animation: nandi-halo 1.4s ease-out infinite; }
+@keyframes nandi-rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.animate-rise { animation: nandi-rise .3s ease both; }
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise, .animate-livepulse, .animate-halo { animation: none; }
+  .animate-livepulse, .animate-halo, .animate-rise { animation: none; }
 }

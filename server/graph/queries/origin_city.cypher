@@ -1,4 +1,4 @@
-// origin_city — do the missing and found persons share a city / state of origin?
+// origin_city - do the missing and found persons share a city / state of origin?
 // (SoW §6.1)
 //
 // Params: $missing_id $found_id $filer_phone

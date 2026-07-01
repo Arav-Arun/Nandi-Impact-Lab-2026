@@ -1,11 +1,11 @@
-// zone_plausibility — are the found person and the missing person geographically
+// zone_plausibility - are the found person and the missing person geographically
 // consistent?  (SoW §6.1)
 //
 // Params: $missing_id $found_id
 // Returns one row: same_zone / adjacent_zone / same_venue.
 //
 // Each value is NULL when either side's zone is unknown (so the caller can tell
-// "unknown" apart from "known and different" — only the latter sets the
+// "unknown" apart from "known and different" - only the latter sets the
 // different_venue penalty). ADJACENT_TO is checked in both directions to be
 // robust to how the seed stored the (bidirectional) edge.
 

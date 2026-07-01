@@ -1,10 +1,9 @@
 """
-services.extraction — free-text/voice → structured report fields (M2 intake).
+services.extraction - free-text/voice → structured report fields.
 
 Turns a messy multilingual message (typed, or transcribed by services.sarvam)
-into the exact columns the matcher needs on db.models.MissingReport /
-FoundReport. Uses Claude tool-calling when ANTHROPIC_API_KEY is set; otherwise a
-deterministic heuristic so intake — and the demo — always works without a key.
+into the columns the matcher needs. Provider order: OpenAI → Anthropic → a
+deterministic heuristic, so intake always works even with no LLM key.
 
 Output field names map 1:1 to the report columns (subject_name, subject_age,
 subject_gender ∈ male|female|unknown, physical_description, last_seen_landmark,
@@ -13,6 +12,7 @@ language_spoken, origin_city, reporter_mobile).
 
 from __future__ import annotations
 
+import json
 import re
 
 from pydantic import BaseModel
@@ -37,37 +37,32 @@ class Extracted(BaseModel):
     confidence: float = 0.0
 
 
-_TOOL = {
-    "name": "file_report",
-    "description": "Record the structured missing/found-person report extracted from the message.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "subject_name": {"type": ["string", "null"], "description": "Name of the person, in the original script if given, else null."},
-            "subject_gender": {"type": ["string", "null"], "enum": ["male", "female", "unknown", None]},
-            "subject_age": {"type": ["integer", "null"], "description": "Approximate age in years if stated."},
-            "physical_description": {"type": ["string", "null"], "description": "Clothing/appearance, in clear English for the operator."},
-            "last_seen_landmark": {"type": ["string", "null"], "description": "Where last seen, as named in the message (e.g. Ramkund)."},
-            "language_spoken": {"type": ["string", "null"], "description": "Primary language the person speaks (English name)."},
-            "origin_city": {"type": ["string", "null"], "description": "Home city/town/district of origin (English)."},
-            "reporter_mobile": {"type": ["string", "null"], "description": "Reporter's phone number if mentioned."},
-            "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "Important fields NOT present, to ask about next."},
-            "confidence": {"type": "number", "description": "0-1 confidence this is a usable report."},
-        },
-        "required": ["missing_fields", "confidence"],
+# JSON-schema for the structured output, shared by both LLM providers.
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "subject_name": {"type": ["string", "null"], "description": "Person's name, in the original script if given."},
+        "subject_gender": {"type": ["string", "null"], "enum": ["male", "female", "unknown", None]},
+        "subject_age": {"type": ["integer", "null"], "description": "Approximate age in years if stated."},
+        "physical_description": {"type": ["string", "null"], "description": "Clothing/appearance, in clear English for the operator."},
+        "last_seen_landmark": {"type": ["string", "null"], "description": "Where last seen, as named (e.g. Ramkund)."},
+        "language_spoken": {"type": ["string", "null"], "description": "Primary language the person speaks (English name)."},
+        "origin_city": {"type": ["string", "null"], "description": "Home city/town/district of origin (English)."},
+        "reporter_mobile": {"type": ["string", "null"], "description": "Reporter's phone number if mentioned."},
+        "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "Important fields NOT present, to ask next."},
+        "confidence": {"type": "number", "description": "0-1 confidence this is a usable report."},
     },
+    "required": ["missing_fields", "confidence"],
 }
 
 _SYSTEM = (
     "You are NANDI's intake assistant at the Simhastha Kumbh Mela. Families report "
     "missing relatives (mostly elderly, rural, multilingual) by speaking or typing in "
-    "their own language — Marathi, Hindi, Telugu, Bengali, Tamil and more. Extract a "
-    "structured report by calling the file_report tool. Be faithful: never invent "
-    "details that aren't stated. Normalize subject_gender to male/female/unknown. "
-    "Translate the physical description to clear English for the operator, but keep "
-    "names in their original script. List genuinely-missing key fields (subject_name, "
-    "subject_age, last_seen_landmark, physical_description, reporter_mobile) in "
-    "missing_fields."
+    "their own language. Extract a structured report. Be faithful: never invent "
+    "details. Normalize gender to male/female/unknown. Translate the physical "
+    "description to clear English but keep names in their original script. List "
+    "genuinely-missing key fields (subject_name, subject_age, last_seen_landmark, "
+    "physical_description, reporter_mobile) in missing_fields."
 )
 
 _GENDER = {
@@ -78,42 +73,66 @@ _GENDER = {
 
 
 def _norm_gender(g: str | None) -> str | None:
-    if not g:
-        return None
-    return _GENDER.get(g.strip().lower())
+    return _GENDER.get(g.strip().lower()) if g else None
+
+
+def _user_prompt(text: str, detected_language: str | None) -> str:
+    hint = f"\n(Audio auto-detected as language: {detected_language}.)" if detected_language else ""
+    return f'Report message:\n"""\n{text}\n"""{hint}'
 
 
 async def extract(text: str, detected_language: str | None = None) -> Extracted:
-    """Structured extraction via Claude, falling back to the heuristic on any failure."""
-    if not settings.claude_enabled:
+    """Structured extraction via the best available provider, degrading gracefully."""
+    data: dict | None = None
+    if settings.openai_enabled:
+        data = await _extract_openai(text, detected_language)
+    if data is None and settings.claude_enabled:
+        data = await _extract_anthropic(text, detected_language)
+    if data is None:
         return _heuristic(text, detected_language)
+    return _finalize(data, text, detected_language)
 
+
+async def _extract_openai(text: str, detected_language: str | None) -> dict | None:
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    tool = {"type": "function", "function": {"name": "file_report",
+            "description": "Record the structured missing/found-person report.", "parameters": _SCHEMA}}
     try:
-        from anthropic import AsyncAnthropic
-    except ModuleNotFoundError:
-        # Key is set but the SDK isn't installed — degrade instead of 500ing.
-        log.warning(
-            "anthropic SDK not installed; using heuristic extraction "
-            "(run `pip install anthropic` to enable real Claude extraction)"
+        resp = await client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[{"role": "system", "content": _SYSTEM},
+                      {"role": "user", "content": _user_prompt(text, detected_language)}],
+            tools=[tool],
+            tool_choice={"type": "function", "function": {"name": "file_report"}},
         )
-        return _heuristic(text, detected_language)
+        calls = resp.choices[0].message.tool_calls
+        return json.loads(calls[0].function.arguments) if calls else None
+    except Exception as e:  # network / auth / quota - degrade, never drop the report
+        log.warning("OpenAI extract failed (%s); trying next provider", e)
+        return None
+
+
+async def _extract_anthropic(text: str, detected_language: str | None) -> dict | None:
+    from anthropic import AsyncAnthropic
 
     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    hint = f"\n(Audio was auto-detected as language: {detected_language}.)" if detected_language else ""
+    tool = {"name": "file_report", "description": "Record the structured report.", "input_schema": _SCHEMA}
     try:
         msg = await client.messages.create(
-            model=settings.ANTHROPIC_MODEL,
-            max_tokens=700,
-            system=_SYSTEM,
-            tools=[_TOOL],
+            model=settings.ANTHROPIC_MODEL, max_tokens=700, system=_SYSTEM, tools=[tool],
             tool_choice={"type": "tool", "name": "file_report"},
-            messages=[{"role": "user", "content": f'Report message:\n"""\n{text}\n"""{hint}'}],
+            messages=[{"role": "user", "content": _user_prompt(text, detected_language)}],
         )
-    except Exception as e:  # network / auth / rate-limit — degrade, never drop the report
-        log.warning("Claude extract failed (%s); using heuristic fallback", e)
-        return _heuristic(text, detected_language)
+        return next((b.input for b in msg.content if getattr(b, "type", None) == "tool_use"), None)
+    except Exception as e:
+        log.warning("Anthropic extract failed (%s); using heuristic fallback", e)
+        return None
 
-    data = next((b.input for b in msg.content if getattr(b, "type", None) == "tool_use"), {})
+
+def _finalize(data: dict, text: str, detected_language: str | None) -> Extracted:
+    """Clean an LLM tool-call payload into an Extracted row."""
     data = {k: v for k, v in data.items() if k in Extracted.model_fields}
     data["subject_gender"] = _norm_gender(data.get("subject_gender"))
     if not data.get("language_spoken") and detected_language:
@@ -128,8 +147,6 @@ def _heuristic(text: str, detected_language: str | None) -> Extracted:
     t = (text or "").strip()
     phone = re.search(r"(\+?\d[\d\s-]{8,}\d)", t)
     age = re.search(r"(\d{1,3})\s*(?:वर्ष|साल|years|year|yrs|वयाचे|वर्षांचे)", t)
-    age_years = int(age.group(1)) if age else None
-    lang = LANG_NAME.get(detected_language or "")
     missing = [
         f for f, present in [
             ("last_seen_landmark", "near" in t.lower() or "जवळ" in t),
@@ -137,8 +154,8 @@ def _heuristic(text: str, detected_language: str | None) -> Extracted:
         ] if not present
     ]
     return Extracted(
-        subject_age=age_years,
-        language_spoken=lang,
+        subject_age=int(age.group(1)) if age else None,
+        language_spoken=LANG_NAME.get(detected_language or ""),
         reporter_mobile=phone.group(1).strip() if phone else None,
         physical_description=t[:200] or None,
         missing_fields=missing or ["subject_name", "last_seen_landmark"],

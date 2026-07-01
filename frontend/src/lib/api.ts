@@ -44,7 +44,8 @@ export type Report = {
   is_duplicate_report: boolean;
   detected_language: string | null;
   extraction_confidence: number | null;
-  photo_url: string | null;
+  photo_url?: string | null;
+  priority?: boolean;   // vulnerable person (child ≤12 / elder ≥70), open case
 };
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -64,18 +65,27 @@ export type MatchCandidate = {
   last_seen_landmark: string | null;
   filed_at: string;
   origin_city: string | null;
-  photo_url: string | null;
   vector_score: number;
   confidence: number;
   band: "high" | "probable" | "possible";
   reasons: string[];
+  photo_url?: string | null;
 };
 
 export type ConfirmResult = {
   matched: boolean;
-  otp_dispatched: boolean;
+  otp: string;
+  notified: boolean;
+  notify_channel: "telegram" | "onscreen";
   booth_name: string | null;
   zone_name: string | null;
+};
+
+export type ReuniteResult = {
+  found_id: string;
+  missing_id: string;
+  reunited: boolean;
+  detail: string | null;
 };
 
 export const api = {
@@ -109,6 +119,13 @@ export const api = {
       body: JSON.stringify({ found_id: foundId, missing_id: missingId, operator_id: operatorId }),
     }).then((r) => unwrap<ConfirmResult>(r)),
 
+  matchReunite: (foundId: string, missingId: string, boothId: string, otp: string, operatorId?: string) =>
+    fetch("/api/v1/match/reunite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Booth-ID": boothId },
+      body: JSON.stringify({ found_id: foundId, missing_id: missingId, otp, operator_id: operatorId }),
+    }).then((r) => unwrap<ReuniteResult>(r)),
+
   matchReject: (foundId: string, boothId: string, rejected: string[], operatorId?: string) =>
     fetch("/api/v1/match/reject", {
       method: "POST",
@@ -126,9 +143,9 @@ export const api = {
 
   uploadPhoto: (file: File) => {
     const fd = new FormData();
-    fd.append("file", file, file.name || "photo.jpg");
+    fd.append("file", file);
     return fetch("/api/v1/media/upload", { method: "POST", body: fd }).then((r) =>
-      unwrap<{ photo_url: string; filename: string }>(r)
+      unwrap<{ photo_url: string; description: string | null }>(r)
     );
   },
 
@@ -173,9 +190,16 @@ export const api = {
     fetch(`/api/v1/blast/found/${foundId}`, { method: "POST" }).then((r) =>
       unwrap<BlastResult>(r)
     ),
+
+  setZoneChannel: (zoneId: string, telegram_channel: string | null) =>
+    fetch(`/api/v1/zones/${zoneId}/channel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegram_channel }),
+    }).then((r) => unwrap<{ id: string; telegram_channel: string | null; join_link: string | null }>(r)),
 };
 
-export type Channels = { sms: boolean; whatsapp: boolean; telegram: boolean; email: boolean };
+export type Channels = { telegram: boolean; email: boolean };
 
 export type Zone = {
   id: string;
@@ -183,6 +207,8 @@ export type Zone = {
   venue: string;
   display_name_marathi: string;
   color_code: string;
+  telegram_channel: string | null;
+  join_link: string | null;
   subscribers: number;
   registrants: number;
   reachable: number;
@@ -203,7 +229,8 @@ export type SubscribersResult = {
 
 export type BlastResult = {
   zones: string[];
-  channels: Record<string, { targeted: number; sent: number }>;
+  channels_posted: { zone: string; channel: string; sent: boolean; members: number | null }[];
+  email: { targeted: number; sent: number };
   targeted: number;
 };
 

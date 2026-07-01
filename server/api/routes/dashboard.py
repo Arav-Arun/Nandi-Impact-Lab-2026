@@ -1,11 +1,10 @@
 """
-api.routes.dashboard — Member 3's dashboard data source (read-only aggregates).
+api.routes.dashboard - Member 3's dashboard data source (read-only aggregates).
 
 Auto-mounted under /api/v1. Powers the Overview console and the operator feed.
 
   GET /api/v1/stats      headline counts + breakdowns (matches the frontend shape)
   GET /api/v1/feed       recent reports (missing + found), newest first
-  GET /api/v1/patterns   landmark→booth flow patterns (Neo4j, via M1's client)
   GET /api/v1/booths     seeded booths (for the operator's X-Booth-ID)
 """
 
@@ -24,7 +23,6 @@ from core.config import settings
 from core.responses import ok
 from db.models import Booth, CaseEvent, FoundReport, MissingReport, Zone
 from services.intake_pipeline import age_band, feed_item
-from services.neo4j_client import neo4j_client
 
 router = APIRouter(tags=["dashboard"])
 
@@ -38,7 +36,13 @@ def _high_risk_age(age: int | None) -> bool:
     """Children under 12 and elders 65+ are the highest-risk groups."""
     return age is not None and (age < 12 or age >= 65)
 
-_STATUS_LABEL = {"active": "Pending", "matched": "Reunited", "closed": "Closed", "duplicate": "Duplicate"}
+_STATUS_LABEL = {
+    "active": "Pending",
+    "matched": "Matched",       # confirmed, family being brought in - not yet reunited
+    "reunited": "Reunited",     # OTP verified at the booth - loop closed
+    "closed": "Closed",
+    "duplicate": "Duplicate",
+}
 
 
 def _pct(part: int, total: int) -> float:
@@ -109,21 +113,18 @@ async def get_stats(session: AsyncSession = Depends(get_session)):
     matched = (await session.execute(
         select(CaseEvent.report_id, CaseEvent.event_at).where(CaseEvent.event_type == "matched")
     )).all()
-    # Only count plausible reunion spans: matched-after-filed and within a sane
-    # window. Guards against demo/seed rows whose filed_at is future-dated (which
-    # would otherwise yield a negative or absurd average).
     spans = [
-        span
+        (ev_at - filed_at[rid]).total_seconds() / 3600
         for rid, ev_at in matched
         if rid in filed_at and filed_at[rid] and ev_at
-        and 0 <= (span := (ev_at - filed_at[rid]).total_seconds() / 3600) <= 24 * 14
     ]
     avg_resolution_hours = round(mean(spans), 1) if spans else None
 
     return ok({
         "total": total,
         "live_today": live_today,
-        "reunited": by_status_raw.get("matched", 0),
+        "reunited": by_status_raw.get("reunited", 0),
+        "matched_pending_pickup": by_status_raw.get("matched", 0),
         "avg_resolution_hours": avg_resolution_hours,
         "duplicates": int(duplicates),
         # judge-aligned operational metrics
@@ -166,11 +167,6 @@ async def get_feed(limit: int = Query(40, le=200), session: AsyncSession = Depen
     items += [feed_item(f, "found", "booth") for f in found]
     items.sort(key=lambda x: x["reported_at"], reverse=True)
     return ok(items[:limit])
-
-
-@router.get("/patterns")
-async def get_patterns(min_times: int = 1, limit: int = 50):
-    return ok(await neo4j_client.landmark_patterns(min_times=min_times, limit=limit))
 
 
 @router.get("/booths")

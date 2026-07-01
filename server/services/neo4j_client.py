@@ -1,5 +1,5 @@
 """
-services.neo4j_client — async Neo4j driver wrapper + all graph operations (M1).
+services.neo4j_client - async Neo4j driver wrapper + all graph operations (M1).
 
 Responsibilities:
   • Own the single async driver (connect lazily, close on shutdown).
@@ -13,7 +13,7 @@ Responsibilities:
 
 GRACEFUL DEGRADATION (SoW §2 Golden Rule): if Neo4j is unreachable, every read
 returns empty/false signals and every write is a logged no-op. Matching then
-falls back to pure vector similarity instead of crashing — tech amplifies, it is
+falls back to pure vector similarity instead of crashing - tech amplifies, it is
 never the only layer.
 
 The .cypher query files live in graph/queries/ and are loaded by name. Their
@@ -48,7 +48,7 @@ def _load_cypher(name: str) -> str:
 
 
 def _coerce_bool(value: Any) -> bool:
-    """Neo4j may return None for comparisons involving NULLs — treat None as False."""
+    """Neo4j may return None for comparisons involving NULLs - treat None as False."""
     return bool(value) if value is not None else False
 
 
@@ -73,14 +73,14 @@ class Neo4jClient:
                 # Silence "unknown relationship type / property key" notifications:
                 # several rels (MATCHED_TO, BELONGS_TO) and props (City.state) only
                 # exist once data accumulates, so these warnings are expected noise,
-                # not bugs — our queries handle the absent cases as NULL/false.
+                # not bugs - our queries handle the absent cases as NULL/false.
                 notifications_disabled_categories=["UNRECOGNIZED"],
             )
             await self._driver.verify_connectivity()
             self._unavailable = False
             log.info("Neo4j connected at %s", settings.NEO4J_URI)
         except Exception as exc:  # connection refused / auth / offline
-            log.warning("Neo4j unavailable (%s) — graph validation will be skipped.", exc)
+            log.warning("Neo4j unavailable (%s) - graph validation will be skipped.", exc)
             self._driver = None
             self._unavailable = True
 
@@ -106,7 +106,7 @@ class Neo4jClient:
                 result = await session.run(cypher, params or {})
                 return [record.data() async for record in result]
         except Exception as exc:
-            log.warning("Neo4j query failed (%s) — returning empty result.", exc)
+            log.warning("Neo4j query failed (%s) - returning empty result.", exc)
             return []
 
     # ── runtime node sync (idempotent) ──────────────────────────────────────
@@ -291,31 +291,6 @@ class Neo4jClient:
             return 0, []
         r = rows[0]
         return int(r.get("duplicate_count") or 0), [str(i) for i in (r.get("ids") or [])]
-
-    # ── dashboard support (consumed by M3's GET /dashboard/patterns) ─────────
-    async def landmark_patterns(
-        self, *, min_times: int = 1, limit: int = 50
-    ) -> list[dict[str, Any]]:
-        """
-        Aggregate learned landmark→booth flows across confirmed matches.
-
-        Returns rows shaped `{from_landmark, to_landmark, count}` where
-        `to_landmark` is the booth where people last seen at `from_landmark`
-        typically turned up (Panel 4 annotation). M3 owns the HTTP route; this is
-        the data source it calls.
-        """
-        rows = await self._run(
-            _load_cypher("landmark_pattern"), {"min_times": min_times, "limit": limit}
-        )
-        return [
-            {
-                "from_landmark": r.get("from_landmark"),
-                "to_landmark": r.get("to_landmark"),
-                "count": int(r.get("times") or 0),
-            }
-            for r in rows
-        ]
-
 
 # Module-level singleton shared by routes/services. Connected at app startup
 # (api.main lifespan) and closed at shutdown.

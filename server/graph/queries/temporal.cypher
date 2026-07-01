@@ -1,11 +1,11 @@
-// temporal — is the time gap between last-seen and found plausible?  (SoW §6.1)
+// temporal - is the time gap between last-seen and found plausible?  (SoW §6.1)
 //
 // Params: $missing_id $found_id
 // Returns very_recent (<2h) / same_day (<24h) / stale (>72h).
 //
 // We use duration.inSeconds(...).seconds / 3600 for the TOTAL hour gap. (The
 // literal SoW snippet used `.hours`, which is only the hours *component* of a
-// normalised duration and undercounts multi-day gaps — total seconds is correct.)
+// normalised duration and undercounts multi-day gaps - total seconds is correct.)
 // Values are NULL when either timestamp is missing, so no temporal modifier fires.
 
 MATCH (m:MissingReport {id: $missing_id})

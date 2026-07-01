@@ -1,8 +1,8 @@
 """
-scripts.seed_postgres — seed zones + booths into PostgreSQL.
+scripts.seed_postgres - seed zones + booths into PostgreSQL.
 
 Uses the SAME deterministic UUIDs as scripts.seed_neo4j (both read seed_data), so
-a zone id in Postgres equals the matching zone id in Neo4j — which is exactly
+a zone id in Postgres equals the matching zone id in Neo4j - which is exactly
 what the zone-plausibility check relies on.
 
 Usage:

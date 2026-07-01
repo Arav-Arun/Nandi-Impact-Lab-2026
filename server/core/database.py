@@ -1,5 +1,5 @@
 """
-core.database — async SQLAlchemy engine + session factory (shared infra).
+core.database - async SQLAlchemy engine + session factory (shared infra).
 
 Every route/service that touches PostgreSQL depends on `get_session`:
 
@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import (
 from core.config import settings
 
 # echo=False keeps logs clean; flip to True locally to see emitted SQL.
-# pool_pre_ping avoids handing out dead connections after a DB restart — handy
+# pool_pre_ping avoids handing out dead connections after a DB restart - handy
 # on Shahi Snan days when the network flaps.
 engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
@@ -54,7 +54,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
     Commits on success, rolls back on any exception, always closes. Handlers
     should NOT call session.commit() for the happy path unless they need an id
-    mid-request — but committing explicitly is also safe (this just commits a
+    mid-request - but committing explicitly is also safe (this just commits a
     no-op afterwards).
     """
     async with AsyncSessionLocal() as session:

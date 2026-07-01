@@ -1,5 +1,5 @@
 """
-services.otp — OTP generation + storage (Member 2).
+services.otp - OTP generation + storage (Member 2).
 
 This is the file `services/notify_bridge.py` (M1) auto-detects. On a confirmed
 match, M1 calls `notify_bridge.generate_otp(case_id)`, which finds this module
@@ -24,7 +24,7 @@ async def generate_and_store(case_id: str) -> str:
     code = f"{secrets.randbelow(10000):04d}"
     try:
         await redis_client.set(f"otp:{case_id}", code, ex=settings.OTP_TTL_SECONDS)
-    except Exception as exc:  # Redis down — still return the code for the operator
+    except Exception as exc:  # Redis down - still return the code for the operator
         log.warning("could not persist OTP for case %s (%s)", case_id, exc)
     return code
 

@@ -1,5 +1,5 @@
 """
-core.logging_utils — logging helpers, including the phone-masking that SoW §12.8
+core.logging_utils - logging helpers, including the phone-masking that SoW §12.8
 non-negotiable #2 requires.
 
     NON-NEGOTIABLE: No plaintext phone numbers in logs.
@@ -47,9 +47,9 @@ def mask_phone(phone: str | None) -> str:
     hyphens, dots, or parentheses ("+91 98765-43210"). We therefore operate on
     the DIGITS only and rebuild a canonical masked form, keeping the leading
     country/operator code and the last 4 digits and replacing the middle with X.
-    Separators are intentionally dropped — the output is for logs, not dialling.
+    Separators are intentionally dropped - the output is for logs, not dialling.
 
-    Returns "<none>" for empty input. Never raises — logging must not blow up
+    Returns "<none>" for empty input. Never raises - logging must not blow up
     because a phone field was malformed (SoW §12.8 #2: no plaintext phones).
     """
     if not phone:

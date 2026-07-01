@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// NANDI Neo4j schema — node/relationship model + constraints (SoW §5.3).
+// NANDI Neo4j schema - node/relationship model + constraints (SoW §5.3).
 //
 // Applied by scripts/seed_neo4j.py before the topology seed. Uniqueness
 // constraints double as lookup indexes, which keeps the runtime MERGE/MATCH in

@@ -1,5 +1,5 @@
 """
-api.routes.ws — live dashboard feed socket (M2/M3).
+api.routes.ws - live dashboard feed socket (M2/M3).
 
   WS /api/v1/ws/feed   pushes {type: "report.new", data: <feed item>} as reports
                        are filed on any channel (via services.hub).

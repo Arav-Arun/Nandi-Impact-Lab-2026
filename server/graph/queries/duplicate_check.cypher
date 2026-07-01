@@ -1,4 +1,4 @@
-// duplicate_check — find other ACTIVE missing reports that look like duplicates
+// duplicate_check - find other ACTIVE missing reports that look like duplicates
 // of the one being checked.  (SoW §6.1)
 //
 // Params: $current_id $name_fragment $age $gender

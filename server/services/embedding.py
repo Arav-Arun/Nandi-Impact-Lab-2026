@@ -1,29 +1,27 @@
 """
-services.embedding — text + face embeddings (Member 1).
+services.embedding - multilingual text embeddings (Member 1).
 
-Public contract (relied on by M2's intake and M1's matcher):
+Public contract (relied on by intake and the matcher):
 
     embed_text(text: str, kind: str = "passage") -> list[float]   # len == EMBEDDING_DIM (1024)
-    embed_face(image_bytes: bytes)               -> list[float] | None  # len == FACE_EMBEDDING_DIM (512)
 
 Design notes
 ------------
-The real models (intfloat/multilingual-e5-large, InsightFace buffalo_l) are
-large and GPU-friendly. To keep the rest of the system buildable on a laptop —
-and so M2/M3/M4 are never blocked on a multi-GB download — this module:
+The real model (intfloat/multilingual-e5-large) is large and GPU-friendly. So the
+rest of the system stays buildable on any laptop, this module:
 
   • Lazy-loads the real model only on first use (never at import time).
-  • Falls back to a DETERMINISTIC stub embedder when EMBEDDING_FALLBACK=1 (the
-    default) or when the real model cannot be loaded. The stub hashes the input
-    to seed a fixed pseudo-random unit vector, so:
+  • Falls back to a DETERMINISTIC stub embedder when EMBEDDING_FALLBACK=1 or when
+    the real model cannot be loaded. The stub hashes the input to seed a fixed
+    pseudo-random unit vector, so:
         - identical text  -> identical vector (cosine 1.0)
         - similar text    -> NOT semantically similar (it's a hash), but matching
           and tests remain reproducible and the pipeline runs end-to-end.
-    Flip EMBEDDING_FALLBACK=0 on the demo box (with the model installed) for real
-    multilingual semantics.
+    Set EMBEDDING_FALLBACK=0 (with the model installed) for real multilingual
+    semantics - the default in this deployment.
 
-e5 prefix convention (SoW §12.5): stored documents are embedded as "passage: ..."
-and search queries as "query: ...". `kind` selects the prefix.
+e5 prefix convention: stored documents are embedded as "passage: ..." and search
+queries as "query: ...". `kind` selects the prefix.
 """
 
 from __future__ import annotations
@@ -37,13 +35,11 @@ from core.logging_utils import get_logger
 
 log = get_logger(__name__)
 
-# Lazily-initialised singletons for the real models. None until first real use.
+# Lazily-initialised singleton for the real model. None until first real use.
 _text_model = None  # sentence_transformers.SentenceTransformer
-_face_model = None  # insightface.app.FaceAnalysis
-# Once a real model fails to load we stop retrying and use the stub for the
+# Once the real model fails to load we stop retrying and use the stub for the
 # rest of the process lifetime (avoids hammering a missing dependency per call).
 _text_real_unavailable = False
-_face_real_unavailable = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,84 +105,6 @@ def embed_text(text: str, kind: str = "passage") -> list[float]:
             vec = model.encode(prepared, normalize_embeddings=True)
             return np.asarray(vec, dtype=np.float32).tolist()
 
-    # Fallback path — seed the stub with the prepared (prefixed) string so the
+    # Fallback path - seed the stub with the prepared (prefixed) string so the
     # passage/query distinction is preserved deterministically.
     return _stub_vector(prepared, settings.EMBEDDING_DIM)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Face embedding (InsightFace buffalo_l / ArcFace, 512-dim)
-# ─────────────────────────────────────────────────────────────────────────────
-def _load_face_model():
-    """Load InsightFace once; mark unavailable on failure (deps are optional)."""
-    global _face_model, _face_real_unavailable
-    if _face_model is not None:
-        return _face_model
-    try:
-        from insightface.app import FaceAnalysis
-
-        log.info("Loading face model %s …", settings.FACE_MODEL)
-        app = FaceAnalysis(name=settings.FACE_MODEL)
-        app.prepare(ctx_id=0 if settings.EMBEDDING_DEVICE != "cpu" else -1)
-        _face_model = app
-        return _face_model
-    except Exception as exc:
-        log.warning("Real face model unavailable (%s); using deterministic stub.", exc)
-        _face_real_unavailable = True
-        return None
-
-
-def embed_face(image_bytes: bytes) -> list[float] | None:
-    """
-    Embed the largest detected face in `image_bytes` into a 512-dim vector.
-
-    Returns None when no face is detected (caller treats faceless photos as "no
-    face vector" — photos are optional everywhere, SoW §12.8 #5). In stub mode a
-    vector is always returned (hash of the image bytes) so the re-rank path is
-    still exercised in tests.
-    """
-    if not image_bytes:
-        return None
-
-    use_stub = settings.EMBEDDING_FALLBACK or _face_real_unavailable
-    if not use_stub:
-        app = _load_face_model()
-        if app is not None:
-            try:
-                import cv2  # provided by opencv via insightface
-
-                arr = np.frombuffer(image_bytes, dtype=np.uint8)
-                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-                faces = app.get(img)
-                if not faces:
-                    return None
-                # Pick the largest face by bounding-box area.
-                face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-                emb = np.asarray(face.normed_embedding, dtype=np.float32)
-                return emb.tolist()
-            except Exception as exc:
-                log.warning("Face embedding failed (%s); using stub.", exc)
-
-    # Fallback — deterministic per image content.
-    digest = hashlib.sha256(image_bytes).hexdigest()
-    return _stub_vector(f"face:{digest}", settings.FACE_EMBEDDING_DIM)
-
-
-def cosine_similarity(a: list[float], b: list[float]) -> float:
-    """
-    Cosine similarity between two embedding vectors, clamped to [-1, 1].
-
-    Used by the photo re-ranking step. Returns 0.0 if either vector is empty or
-    zero-length (treated as "no signal").
-    """
-    # NB: a/b may be numpy arrays (pgvector returns ndarray) — never use bare
-    # truthiness on them (it raises "ambiguous truth value"). Check None/size.
-    if a is None or b is None:
-        return 0.0
-    va, vb = np.asarray(a, dtype=np.float32), np.asarray(b, dtype=np.float32)
-    if va.size == 0 or vb.size == 0:
-        return 0.0
-    na, nb = np.linalg.norm(va), np.linalg.norm(vb)
-    if na == 0 or nb == 0:
-        return 0.0
-    return float(np.clip(np.dot(va, vb) / (na * nb), -1.0, 1.0))

@@ -1,5 +1,5 @@
 """
-api.main — FastAPI application factory and router wiring.
+api.main - FastAPI application factory and router wiring.
 
 Run with:  uvicorn api.main:app --reload
 
@@ -7,7 +7,7 @@ SEAMLESS-MERGE DESIGN
 ---------------------
 Router registration is DIRECTORY-DRIVEN, not an allowlist. Drop ANY file into
 `api/routes/<anything>.py` exposing a module-level `router` (and/or
-`internal_router`, a FastAPI APIRouter) and it auto-mounts under `/api/v1` — no
+`internal_router`, a FastAPI APIRouter) and it auto-mounts under `/api/v1` - no
 edits to this file, no merge conflict here, regardless of the filename M2/M3/M4
 choose (intake.py, blast.py, dashboard.py, ws.py, …). So:
 
@@ -55,7 +55,7 @@ def _register_routers(app: FastAPI) -> None:
         module_path = f"{routes_pkg.__name__}.{name}"
         try:
             module = importlib.import_module(module_path)
-        except Exception as exc:  # present but broken — surface it, don't hide it
+        except Exception as exc:  # present but broken - surface it, don't hide it
             log.error("FAILED to import router %s: %s", module_path, exc)
             continue
 
@@ -67,7 +67,7 @@ def _register_routers(app: FastAPI) -> None:
                 log.info("mounted %s.%s", module_path, attr)
                 mounted_any = True
         if not mounted_any:
-            log.warning("%s exposes no `router`/`internal_router` — skipped", module_path)
+            log.warning("%s exposes no `router`/`internal_router` - skipped", module_path)
 
 
 @asynccontextmanager
@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="NANDI API",
         version="2.0.0",
-        description="Missing Persons Reunification System — Kumbh Mela 2027",
+        description="Missing Persons Reunification System - Kumbh Mela 2027",
         lifespan=lifespan,
     )
 
@@ -103,9 +103,14 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     _register_routers(app)
 
+    from fastapi.staticfiles import StaticFiles
+    import os
+    os.makedirs("uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
     @app.get("/health", tags=["meta"])
     async def health() -> dict:
-        """Liveness probe — returns the standard envelope."""
+        """Liveness probe - returns the standard envelope."""
         return ok({"status": "ok", "service": "nandi-api"})
 
     return app

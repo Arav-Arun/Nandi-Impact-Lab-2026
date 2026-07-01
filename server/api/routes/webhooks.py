@@ -1,13 +1,12 @@
 """
-api.routes.webhooks — Telegram + WhatsApp(Twilio) intake channels (M2).
+api.routes.webhooks - Telegram intake channel (M2).
 
-Auto-mounted under /api/v1. Each inbound message (text or voice) is transcribed
+Auto-mounted under /api/v1. Inbound messages (text or voice) are transcribed
 if needed (services.sarvam), structured (services.extraction), and funneled
-through services.intake_pipeline.file_missing — the same path as the web form, so
+through services.intake_pipeline.file_missing - the same path as the web form, so
 graph sync / dedup / audit / live feed all happen identically.
 
   POST /api/v1/telegram/webhook   Telegram Bot API updates  (+ /set-webhook helper)
-  POST /api/v1/whatsapp/webhook   Twilio WhatsApp inbound (replies via TwiML)
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ log = get_logger("nandi.webhooks")
 router = APIRouter(tags=["webhooks"])
 
 _GREETING = (
-    "🪷 NANDI: describe the missing person — name, age, and where they were last seen. "
+    "🪷 NANDI: describe the missing person - name, age, and where they were last seen. "
     "You can also send a voice note in your language."
 )
 
@@ -123,34 +122,3 @@ async def telegram_set_webhook(url: str):
         return ok({"set": False, "reason": "TELEGRAM_BOT_TOKEN not set"})
     return ok(res)
 
-
-# ── WhatsApp (Twilio) ─────────────────────────────────────────────────────────
-def _twiml(text: str) -> Response:
-    body = f"<?xml version='1.0' encoding='UTF-8'?><Response><Message>{text}</Message></Response>"
-    return Response(content=body, media_type="application/xml")
-
-
-@router.post("/whatsapp/webhook")
-async def whatsapp_webhook(request: Request):
-    form = await request.form()
-    body = (str(form.get("Body") or "")).strip()
-    sender = form.get("From")  # "whatsapp:+9198XXXXXXXX"
-
-    audio_url = None
-    if int(form.get("NumMedia") or 0) > 0 and str(form.get("MediaContentType0", "")).startswith("audio"):
-        audio_url = form.get("MediaUrl0")
-
-    if not body and not audio_url:
-        return _twiml(_GREETING)
-
-    auth = None
-    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
-        auth = (settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-
-    phone = (sender or "").replace("whatsapp:", "") or "unknown"
-    report_id = await _file_from_message(
-        text=body, audio_url=audio_url,
-        filed_by_phone=phone, channel="whatsapp",
-        subscriber_address=phone if phone != "unknown" else None, audio_auth=auth,
-    )
-    return _twiml(f"🪷 Registered. Case {report_id[:8]}. NANDI's team will follow up shortly.")

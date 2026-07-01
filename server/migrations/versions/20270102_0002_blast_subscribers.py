@@ -1,4 +1,4 @@
-"""blast subscribers — multi-channel location-blast recipients (M2)
+"""blast subscribers - multi-channel location-blast recipients (M2)
 
 Revision ID: 0002
 Revises: 0001

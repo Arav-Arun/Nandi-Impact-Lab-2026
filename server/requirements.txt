@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# NANDI — Python backend dependencies (shared across all members)
+# NANDI - Python backend dependencies (shared across all members)
 #
 # Member 1 owns this baseline. If you (M2/M3/M4) need a new package, append it
 # under the clearly-marked section for your module at the bottom so merges stay
@@ -29,16 +29,12 @@ redis==5.0.7
 
 # ── Embeddings: text (multilingual-e5-large) + face (InsightFace) ───────────
 # These are heavy. services/embedding.py lazy-loads them and falls back to a
-# deterministic stub (EMBEDDING_FALLBACK=1) so the rest of the stack — and the
-# other members' code — runs on a laptop with no GPU / no model download.
-# On the demo/match box set EMBEDDING_FALLBACK=0 to use the REAL models below;
-# after enabling them, run `python -m scripts.reembed` once so existing rows get
-# real (semantic) vectors instead of the stub vectors they were seeded with.
-sentence-transformers==5.6.0       # text embeddings (pulls torch + transformers)
-numpy==2.4.6
-insightface==1.0.1                 # real face recognition (buffalo_l / ArcFace)
-onnxruntime==1.27.0                # insightface inference runtime
-opencv-python-headless==4.13.0.92  # image decode for face embedding (services/embedding.py)
+# deterministic stub (EMBEDDING_FALLBACK=1) so the rest of the stack - and the
+# other members' code - runs on a laptop with no GPU / no model download.
+sentence-transformers==3.0.1
+numpy==1.26.4
+# insightface==0.7.3              # uncomment on a box with onnxruntime for real faces
+# onnxruntime==1.18.1
 
 # ── Auth helpers (JWT decode for protected routes; M4 issues tokens) ─────────
 python-jose[cryptography]==3.3.0
@@ -48,11 +44,12 @@ pytest==8.2.2
 pytest-asyncio==0.23.7
 httpx==0.27.0
 
-# ── Member 2 (Notifications + intake AI) extra deps ─────────────────────────
-anthropic==0.112.0          # Claude multilingual field extraction (services/extraction.py)
+# ── Member 2 (Notifications) extra deps - add below ─────────────────────────
+openai>=1.40.0
+anthropic>=0.34.0
 # celery==5.4.0
 
-# ── Member 3 (UI) — frontend deps live in booth-app/ and dashboard/ package.json ─
+# ── Member 3 (UI) - frontend deps live in booth-app/ and dashboard/ package.json ─
 
-# ── Member 4 (Integration/Infra) extra deps — add below ─────────────────────
+# ── Member 4 (Integration/Infra) extra deps - add below ─────────────────────
 # prometheus-fastapi-instrumentator==7.0.0

@@ -1,11 +1,11 @@
 """
-services.notify — one multi-channel sender: SMS · WhatsApp · Telegram · Email (M2).
+services.notify - multi-channel sender: Telegram · Email.
 
 Each channel is feature-flagged on its keys in core.config. A channel with no key
 configured logs a masked no-op and returns False, so the match-notification and
 location-blast paths always run regardless of which providers are wired up.
 
-    await notify.send("whatsapp", "+9198...", "text")
+    await notify.send("telegram", "<chat_id>", "text")
     await notify.send("email", "a@b.com", "body", subject="...")
 
 All senders return True only when the message was handed to a real provider.
@@ -35,55 +35,6 @@ def _from_email() -> tuple[str, str]:
     return "NANDI", settings.EMAIL_FROM.strip()
 
 
-async def _twilio_message(*, to: str, body: str, from_: str) -> bool:
-    sid, token = settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
-    if not (sid and token and from_):
-        return False
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            r = await client.post(
-                f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",
-                auth=(sid, token),
-                data={"To": to, "From": from_, "Body": body},
-            )
-            r.raise_for_status()
-        return True
-    except Exception as exc:
-        log.warning("twilio send to %s failed (%s)", mask_phone(to), exc)
-        return False
-
-
-async def send_sms(to: str, text: str) -> bool:
-    """Send an SMS via Twilio (if a Twilio number is set) else MSG91."""
-    if settings.TWILIO_SMS_FROM and settings.TWILIO_ACCOUNT_SID:
-        if await _twilio_message(to=to, body=text, from_=settings.TWILIO_SMS_FROM):
-            return True
-    if settings.MSG91_AUTH_KEY:
-        try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                r = await client.post(
-                    "https://control.msg91.com/api/v5/flow/",
-                    headers={"authkey": settings.MSG91_AUTH_KEY, "Content-Type": "application/json"},
-                    json={"sender": settings.MSG91_SENDER_ID, "short_url": "0",
-                          "mobiles": "".join(c for c in to if c.isdigit()), "message": text},
-                )
-                r.raise_for_status()
-            return True
-        except Exception as exc:
-            log.warning("msg91 send to %s failed (%s)", mask_phone(to), exc)
-            return False
-    log.info("[stub] SMS suppressed (no SMS provider): to=%s", mask_phone(to))
-    return False
-
-
-async def send_whatsapp(to: str, text: str) -> bool:
-    if not settings.whatsapp_enabled:
-        log.info("[stub] WhatsApp suppressed (no Twilio): to=%s", mask_phone(to))
-        return False
-    addr = to if str(to).startswith("whatsapp:") else f"whatsapp:{to}"
-    return await _twilio_message(to=addr, body=text, from_=settings.TWILIO_WHATSAPP_FROM)
-
-
 async def send_telegram(chat_id: str, text: str) -> bool:
     if not settings.telegram_enabled:
         log.info("[stub] Telegram suppressed (no bot token): chat=%s", chat_id)
@@ -99,6 +50,22 @@ async def send_telegram(chat_id: str, text: str) -> bool:
     except Exception as exc:
         log.warning("telegram send to chat %s failed (%s)", chat_id, exc)
         return False
+
+
+async def telegram_member_count(chat: str) -> int | None:
+    """Best-effort member count of a Telegram channel/group (for broadcast reach)."""
+    if not settings.telegram_enabled:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            r = await client.get(
+                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getChatMemberCount",
+                params={"chat_id": chat},
+            )
+            r.raise_for_status()
+            return int(r.json().get("result"))
+    except Exception:
+        return None
 
 
 async def send_email(to: str, text: str, subject: str = "NANDI") -> bool:
@@ -156,11 +123,7 @@ def _smtp_send(to: str, subject: str, text: str, from_addr: str) -> None:
 
 
 async def send(channel: str, to: str, text: str, subject: str = "NANDI") -> bool:
-    """Dispatch to the right channel sender. `to` is phone / chat_id / email."""
-    if channel == "sms":
-        return await send_sms(to, text)
-    if channel == "whatsapp":
-        return await send_whatsapp(to, text)
+    """Dispatch to the right channel sender. `to` is chat_id / email."""
     if channel == "telegram":
         return await send_telegram(to, text)
     if channel == "email":

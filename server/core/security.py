@@ -1,9 +1,9 @@
 """
-core.security — lightweight auth dependencies shared across routes (SoW §12.1).
+core.security - lightweight auth dependencies shared across routes (SoW §12.1).
 
-  • require_internal_key — guards `/internal/*` routes (server-to-server only).
+  • require_internal_key - guards `/internal/*` routes (server-to-server only).
     Checks `X-Internal-Key` against settings.INTERNAL_KEY.
-  • get_booth_id        — extracts the mandatory `X-Booth-ID` on booth routes.
+  • get_booth_id        - extracts the mandatory `X-Booth-ID` on booth routes.
 
 JWT issuing/verification for the dashboard lives with M4 (`/auth/login`). M1's
 endpoints only need the internal key + booth id, so that's all this module owns.

@@ -1,5 +1,5 @@
 """
-scripts.blast_worker — time-based escalation for still-open reports (M2).
+scripts.blast_worker - time-based escalation for still-open reports (M2).
 
 SoW escalation ladder: a missing report that is still `active` past T+24h triggers
 a zone re-blast across every live channel; past T+72h it is escalated to police.
@@ -38,7 +38,7 @@ async def run_once() -> dict:
     """One escalation sweep. Returns counts of actions taken."""
     reblasted = escalated = 0
     async with AsyncSessionLocal() as session:
-        # T+24h — re-blast the zone for still-open reports
+        # T+24h - re-blast the zone for still-open reports
         for report in await blast.open_reports_past(
             session, hours=settings.BLAST_ESCALATE_HOURS_1, without_event=EventType.blast_zone_sent
         ):
@@ -48,11 +48,11 @@ async def run_once() -> dict:
                    f"If you have seen them, please alert the nearest NANDI booth.")
             await blast.blast_zone(
                 session, zone_id=report.last_seen_zone_id, message=msg,
-                subject="NANDI — still searching", report_id=report.id,
+                subject="NANDI - still searching", report_id=report.id,
             )
             reblasted += 1
 
-        # T+72h — escalate to police
+        # T+72h - escalate to police
         for report in await blast.open_reports_past(
             session, hours=settings.BLAST_ESCALATE_HOURS_2, without_event=EventType.escalated_to_police
         ):

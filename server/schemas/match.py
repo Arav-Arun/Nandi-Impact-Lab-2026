@@ -1,5 +1,5 @@
 """
-schemas.match — request/response models for the matching API (Member 1).
+schemas.match - request/response models for the matching API (Member 1).
 
 These are the exact shapes M2 (intake calls /match/{found_id} after registering a
 found person) and M3 (booth PWA renders candidates) integrate against. The
@@ -27,7 +27,7 @@ class GraphSignals(BaseModel):
 
     Keys map 1:1 to the modifier keys consumed by scoring.composite_confidence().
     Every field defaults to False so a partial / degraded Neo4j response still
-    produces a valid signal set (graceful degradation — SoW §2 Golden Rule).
+    produces a valid signal set (graceful degradation - SoW §2 Golden Rule).
     """
 
     # Zone plausibility
@@ -94,7 +94,7 @@ class MatchCandidate(BaseModel):
 
 
 class MatchListResponse(BaseModel):
-    """Response for GET /match/{found_id} — top candidates, best first."""
+    """Response for GET /match/{found_id} - top candidates, best first."""
 
     found_id: uuid.UUID
     candidates: list[MatchCandidate]
@@ -105,7 +105,7 @@ class MatchListResponse(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 class ConfirmRequest(BaseModel):
     """
-    Body for POST /match/confirm — the operator picked one candidate.
+    Body for POST /match/confirm - the operator picked one candidate.
 
     Human confirmation is a safety contract (SoW §12.8 #1): the system NEVER
     auto-notifies; this endpoint is the only path that triggers a match SMS.
@@ -122,18 +122,37 @@ class ConfirmResponse(BaseModel):
     found_id: uuid.UUID
     missing_id: uuid.UUID
     matched: bool = True
-    otp_dispatched: bool = Field(
-        ..., description="True if the match SMS+OTP was handed to M2's notifier"
+    otp: str = Field(..., description="verification code the family presents at pickup")
+    notified: bool = Field(
+        ..., description="True if an outbound match message was delivered to the family"
+    )
+    notify_channel: str = Field(
+        ..., description="channel used to reach the family: 'telegram' or 'onscreen'"
     )
     booth_name: str | None = None
     zone_name: str | None = None
-    notify_detail: str | None = Field(
-        default=None, description="non-fatal note if notification could not be dispatched"
-    )
+
+
+class ReuniteRequest(BaseModel):
+    """Body for POST /match/reunite - family presents the OTP at the booth."""
+
+    found_id: uuid.UUID
+    missing_id: uuid.UUID
+    otp: str = Field(..., description="the verification code the family received")
+    operator_id: str | None = Field(default=None, description="logged in the audit trail")
+
+
+class ReuniteResponse(BaseModel):
+    """Response for POST /match/reunite."""
+
+    found_id: uuid.UUID
+    missing_id: uuid.UUID
+    reunited: bool
+    detail: str | None = None
 
 
 class RejectRequest(BaseModel):
-    """Body for POST /match/reject — operator rejected all surfaced candidates."""
+    """Body for POST /match/reject - operator rejected all surfaced candidates."""
 
     found_id: uuid.UUID
     operator_id: str | None = None

@@ -1,7 +1,7 @@
 """
-services.scoring — composite confidence score (SoW §6.2 / §6.3).
+services.scoring - composite confidence score (SoW §6.2 / §6.3).
 
-Pure functions, no I/O — trivially unit-testable. The matcher feeds in the raw
+Pure functions, no I/O - trivially unit-testable. The matcher feeds in the raw
 pgvector cosine similarity plus the boolean graph signals from Neo4j, and gets
 back a final score clamped to [0, 1] together with the plain-language reason
 labels the booth operator sees.
@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from schemas.common import ConfidenceBand
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Modifier table — (delta, operator-facing label). Verbatim from SoW §6.2.
+# Modifier table - (delta, operator-facing label). Verbatim from SoW §6.2.
 # Order is preserved so reason labels read in a stable, sensible sequence.
 # ─────────────────────────────────────────────────────────────────────────────
 MODIFIERS: dict[str, tuple[float, str]] = {
@@ -62,7 +62,7 @@ def composite_confidence(
     Returns:
         (final_score, reason_labels) where final_score is rounded to 3 dp and
         clamped to [0, 1], and reason_labels are the human-readable strings for
-        the signals that fired — in MODIFIERS order.
+        the signals that fired - in MODIFIERS order.
     """
     base = float(vector_score)
     reasons: list[str] = []
@@ -80,7 +80,7 @@ def confidence_band(score: float) -> ConfidenceBand | None:
     """
     Map a final score to its operator band, or None if below the surface floor.
 
-    None means "do not show this candidate" — the matcher filters these out.
+    None means "do not show this candidate" - the matcher filters these out.
     """
     if score >= HIGH_THRESHOLD:
         return ConfidenceBand.high

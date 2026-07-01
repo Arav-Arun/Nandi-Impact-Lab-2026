@@ -24,9 +24,9 @@ down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# Embedding dims — must equal settings.EMBEDDING_DIM / FACE_EMBEDDING_DIM and the
+# Embedding dims - must equal settings.EMBEDDING_DIM / FACE_EMBEDDING_DIM and the
 # Vector() columns in db.models. Hardcoded here so the migration is reproducible
-# regardless of runtime env (SoW §12.5 — changing these means re-indexing).
+# regardless of runtime env (SoW §12.5 - changing these means re-indexing).
 TEXT_DIM = 1024  # multilingual-e5-large
 FACE_DIM = 512   # InsightFace buffalo_l (ArcFace)
 
@@ -165,18 +165,18 @@ def upgrade() -> None:
     op.execute("CREATE INDEX ix_case_events_event_at     ON case_events (event_at)")
 
     # ── Partial index: only ever vector-scan ACTIVE missing reports ──────────
-    # (SoW §12.8 #6 — never run a full-table vector scan.)
+    # (SoW §12.8 #6 - never run a full-table vector scan.)
     op.execute(
         "CREATE INDEX ix_missing_reports_active ON missing_reports (status) "
         "WHERE status = 'active'"
     )
 
     # ── HNSW indexes for fast approximate nearest-neighbour search ───────────
-    # PARTIAL on the active set (SoW §12.8 #6 — the vector index itself only ever
+    # PARTIAL on the active set (SoW §12.8 #6 - the vector index itself only ever
     # covers searchable rows, so a match query can NEVER full-table vector-scan).
     # Missing reports are searchable while 'active'; found reports while 'unmatched'.
     # The query's WHERE must include the same status predicate for the planner to
-    # use these — services.matcher enforces that.
+    # use these - services.matcher enforces that.
     op.execute(
         "CREATE INDEX ix_missing_reports_embedding_hnsw ON missing_reports "
         "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64) "
@@ -221,4 +221,4 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS groups")
     op.execute("DROP TABLE IF EXISTS booths")
     op.execute("DROP TABLE IF EXISTS zones")
-    # Extensions are left installed — other databases on the cluster may use them.
+    # Extensions are left installed - other databases on the cluster may use them.
